@@ -20,12 +20,14 @@ An advanced web-based security tool for malware detection and vulnerability scan
 ## Getting Started
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/yourusername/tlascanner.git
    cd tlascanner
    ```
 
 2. Install dependencies:
+
    ```bash
    # Frontend
    cd frontend
@@ -41,6 +43,7 @@ An advanced web-based security tool for malware detection and vulnerability scan
    - Add necessary API keys for VirusTotal, NVD, etc.
 
 4. Start development servers:
+
    ```bash
    # Frontend
    cd frontend
