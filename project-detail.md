@@ -108,7 +108,7 @@ TLAScanner
 │   │   ├── scans/
 │   │   │   ├── url/page.tsx
 │   │   │   ├── file/page.tsx
-│   │   │   ├── cve/page.tsx
+│   │   │   └── cve/page.tsx
 │   │   └── api/
 │   ├── components
 │   ├── lib
@@ -283,3 +283,20 @@ tlascanner-backend/
 - URL scans: Store URLs, related data, final verdict
 - File scans: Store file hashes, detection details
 - CVE lookups: Cache frequently accessed records to minimize API calls
+
+#### Session and Data Management Flow
+
+1. **Session Flow**:
+   - User visits site → Gets assigned a session ID (stored in cookie)
+   - Each scan is saved in PostgreSQL with their session ID
+   - Users can access their scan history while session remains active
+
+2. **Database Storage**:
+   - `scan_reports` table stores: scan type, results, and session ID
+   - Session ID links scans to specific browser sessions
+   - No permanent user data is stored in the database
+
+3. **Data Cleanup Process**:
+   - Automated cleanup runs every 24 hours
+   - Removes scan data from inactive sessions
+   - Each new visit starts fresh with new session ID
