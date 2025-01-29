@@ -10,7 +10,7 @@ export function Hero() {
   const [isHovered, setIsHovered] = useState(false)
 
   return (
-    <section className="relative min-h-[80vh] flex items-center justify-center py-20 overflow-hidden">
+    <section className="relative min-h-[90vh] flex items-center justify-center py-20 overflow-hidden">
       {/* Grid Pattern */}
       <div className="absolute inset-0 grid grid-cols-[repeat(40,minmax(0,1fr))] grid-rows-[repeat(20,minmax(0,1fr))] gap-px opacity-[0.03]">
         {Array.from({ length: 800 }).map((_, i) => (
@@ -100,12 +100,21 @@ export function Hero() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.8 }}
-            className="mt-12 flex justify-center gap-8 text-sm text-gray-400"
+            className="mt-12 flex justify-center gap-8 text-gray-400"
           >
+            {[
+              ["10M+", "Threats Detected"],
+              ["99.9%", "Accuracy Rate"],
+              ["24/7", "Real-time Protection"],
+            ].map(([value, label]) => (
+              <div key={label} className="text-center">
+                <div className="text-2xl font-bold text-blue-500">{value}</div>
+                <div className="text-sm">{label}</div>
+              </div>
+            ))}
           </motion.div>
         </div>
       </div>
     </section>
   )
 }
-
