@@ -1,36 +1,138 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TLA Scanner Frontend
+
+A modern, responsive web application for advanced threat detection and vulnerability analysis.
+
+## Prerequisites
+
+- Node.js 18.x or higher
+- npm 9.x or higher
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository:
+
+```bash
+git clone [your-repository-url]
+cd tlascanner/frontend
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Key Dependencies
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This project uses several key dependencies:
 
-## Learn More
+### Core Dependencies
 
-To learn more about Next.js, take a look at the following resources:
+- Next.js 14.2.16
+- React 18
+- TypeScript
+- Tailwind CSS
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### UI Components and Styling
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- shadcn/ui components (via @radix-ui)
+- Framer Motion (for animations)
+- Lucide React (for icons)
+- next-themes (for dark/light mode)
+- Tailwind CSS (for styling)
+- class-variance-authority (for component variants)
+- clsx (for conditional classes)
 
-## Deploy on Vercel
+### Form Handling
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- React Hook Form
+- Zod (for validation)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+```
+frontend/
+├── app/                    # Next.js app directory
+│   ├── layout.tsx         # Root layout
+│   └── page.tsx           # Home page
+├── components/            # React components
+│   ├── ui/               # shadcn/ui components
+│   └── [feature].tsx     # Feature-specific components
+├── lib/                   # Utility functions
+└── public/               # Static assets
+```
+
+## Features
+
+- Modern UI with shadcn components
+- Dark/Light mode support
+- Smooth animations with Framer Motion
+- Fully responsive design
+- Advanced search capabilities
+- Security analysis tools
+
+## Development Commands
+
+```bash
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm run start
+
+# Run linting
+npm run lint
+```
+
+## Adding New Components
+
+We use shadcn/ui for our components. To add a new component:
+
+```bash
+npx shadcn-ui@latest add [component-name]
+```
+
+## Styling
+
+This project uses Tailwind CSS for styling. The main configuration is in:
+
+- `tailwind.config.js`
+- `app/globals.css`
+
+## Contributing
+
+1. Create a new branch for your feature
+2. Make your changes
+3. Run tests and linting
+4. Submit a pull request
+
+## Common Issues
+
+If you encounter any issues with dependencies, try:
+
+```bash
+# Clear npm cache
+npm cache clean --force
+
+# Remove existing modules
+rm -rf node_modules
+rm -rf .next
+
+# Reinstall dependencies
+npm install
+```
+
+## License
+
+[Your License Here]
