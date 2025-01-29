@@ -22,13 +22,67 @@ cd tlascanner/frontend
 npm install
 ```
 
-3. Run the development server:
+3. Install required shadcn/ui components:
+
+```bash
+# Install essential UI components
+npx shadcn-ui@latest add button
+npx shadcn-ui@latest add input
+npx shadcn-ui@latest add card
+npx shadcn-ui@latest add badge
+npx shadcn-ui@latest add progress
+npx shadcn-ui@latest add separator
+npx shadcn-ui@latest add sheet
+npx shadcn-ui@latest add dialog
+npx shadcn-ui@latest add dropdown-menu
+```
+
+4. Run the development server:
 
 ```bash
 npm run dev
 ```
 
+5. Build the required styles:
+
+```bash
+# Make sure Tailwind CSS classes are generated
+npm run build
+```
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+## Troubleshooting Common Display Issues
+
+If components are not displaying:
+
+1. Clear Next.js cache and rebuild:
+
+```bash
+# Remove .next directory
+rm -rf .next
+# Rebuild the application
+npm run build
+npm run dev
+```
+
+2. Check CSS generation:
+
+```bash
+# Ensure Tailwind classes are generated
+npm run build
+```
+
+3. Verify component dependencies:
+
+- Check that all shadcn/ui components are installed (step 3 above)
+- Make sure `globals.css` is properly imported in `layout.tsx`
+- Confirm that `tailwind.config.js` includes all necessary paths
+
+4. Theme Provider Issues:
+
+- Verify `theme-provider.tsx` is properly set up
+- Check that `ThemeProvider` wraps the application in `layout.tsx`
 
 ## Key Dependencies
 
@@ -65,6 +119,7 @@ frontend/
 │   └── page.tsx           # Home page
 ├── components/            # React components
 │   ├── ui/               # shadcn/ui components
+│   ├── magicui/          # Custom UI components
 │   └── [feature].tsx     # Feature-specific components
 ├── lib/                   # Utility functions
 └── public/               # Static assets
@@ -131,6 +186,9 @@ rm -rf .next
 
 # Reinstall dependencies
 npm install
+
+# Rebuild the application
+npm run build
 ```
 
 ## License
