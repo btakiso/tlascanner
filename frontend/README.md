@@ -16,13 +16,13 @@ git clone [your-repository-url]
 cd tlascanner/frontend
 ```
 
-2. Install dependencies:
+2.Install dependencies:
 
 ```bash
 npm install
 ```
 
-3. Install required shadcn/ui components:
+3.Install required shadcn/ui components:
 
 ```bash
 # Install essential UI components
@@ -37,13 +37,13 @@ npx shadcn-ui@latest add dialog
 npx shadcn-ui@latest add dropdown-menu
 ```
 
-4. Run the development server:
+4.Run the development server:
 
 ```bash
 npm run dev
 ```
 
-5. Build the required styles:
+5.Build the required styles:
 
 ```bash
 # Make sure Tailwind CSS classes are generated
@@ -66,20 +66,20 @@ npm run build
 npm run dev
 ```
 
-2. Check CSS generation:
+2.Check CSS generation:
 
 ```bash
 # Ensure Tailwind classes are generated
 npm run build
 ```
 
-3. Verify component dependencies:
+3.Verify component dependencies:
 
 - Check that all shadcn/ui components are installed (step 3 above)
 - Make sure `globals.css` is properly imported in `layout.tsx`
 - Confirm that `tailwind.config.js` includes all necessary paths
 
-4. Theme Provider Issues:
+4.Theme Provider Issues:
 
 - Verify `theme-provider.tsx` is properly set up
 - Check that `ThemeProvider` wraps the application in `layout.tsx`
@@ -112,7 +112,6 @@ This project uses several key dependencies:
 
 ## Project Structure
 
-```
 frontend/
 ├── app/                    # Next.js app directory
 │   ├── layout.tsx         # Root layout
@@ -123,7 +122,6 @@ frontend/
 │   └── [feature].tsx     # Feature-specific components
 ├── lib/                   # Utility functions
 └── public/               # Static assets
-```
 
 ## Features
 
