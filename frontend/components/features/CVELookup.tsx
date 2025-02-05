@@ -1,277 +1,334 @@
 "use client"
 
-import React, { useRef } from "react"
-import { motion, useInView } from "framer-motion"
-import { ShieldIcon, ArrowRight, AlertCircle, CheckCircle2, Search } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import React, { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Database, Search, Shield, AlertTriangle, CircleCheck, CircleDashed, Zap, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { Card } from "@/components/ui/card"
-import { BoxReveal } from "@/components/ui/box-reveal"
-import { AnimatedBeam } from "@/components/ui/animated-beam"
+import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Shield, Database, FileWarning, FileKey } from "lucide-react"
+import { WaveContainer } from "../ui/wave-container";
 
-interface CVEResult {
+interface SearchStep {
   id: string
-  timestamp: string
-  severity: 'low' | 'medium' | 'high' | 'critical'
+  status: 'pending' | 'loading' | 'complete'
+  text: string
   description: string
+  icon: any
 }
 
 export function CVELookup() {
-  const ref = useRef(null)
-  const isInView = useInView(ref, { once: true, margin: "-100px" })
-  const [isSearching, setIsSearching] = React.useState(false)
-  const [progress, setProgress] = React.useState(0)
-  const [query, setQuery] = React.useState("")
-  const [searchHistory, setSearchHistory] = React.useState<CVEResult[]>([])
+  const router = useRouter()
+  const [query, setQuery] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchSteps, setSearchSteps] = useState<SearchStep[]>([])
 
-  // Refs for AnimatedBeam
-  const containerRef = useRef<HTMLDivElement>(null)
-  const fromRef = useRef<HTMLDivElement>(null)
-  const toRef = useRef<HTMLDivElement>(null)
-
-  React.useEffect(() => {
-    if (isSearching) {
-      const timer = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 100) {
-            setIsSearching(false)
-            clearInterval(timer)
-            return 100
-          }
-          return prev + 1
-        })
-      }, 50)
-      return () => clearInterval(timer)
+  const searchStepsList: SearchStep[] = [
+    { 
+      id: 'init', 
+      text: 'Initializing Scan', 
+      description: 'Preparing vulnerability analysis',
+      status: 'pending',
+      icon: Zap 
+    },
+    { 
+      id: 'scan', 
+      text: 'Database Search', 
+      description: 'Searching CVE records',
+      status: 'pending',
+      icon: Database 
+    },
+    { 
+      id: 'analyze', 
+      text: 'Risk Analysis', 
+      description: 'Evaluating security impact',
+      status: 'pending',
+      icon: Shield 
+    },
+    { 
+      id: 'assess', 
+      text: 'Severity Check', 
+      description: 'Calculating CVSS scores',
+      status: 'pending',
+      icon: AlertTriangle 
     }
-  }, [isSearching])
+  ]
 
-  const handleSearch = () => {
-    if (!query) return
+  const handleSearch = async () => {
+    if (!query.trim()) return
     setIsSearching(true)
-    setProgress(0)
+    setSearchSteps(searchStepsList.map(step => ({ ...step, status: 'pending' })))
 
-    // Simulate CVE lookup result
-    const severities: ('low' | 'medium' | 'high' | 'critical')[] = ['low', 'medium', 'high', 'critical']
-    setSearchHistory(prev => [{
-      id: `CVE-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)}`,
-      timestamp: new Date().toISOString(),
-      severity: severities[Math.floor(Math.random() * severities.length)],
-      description: 'Vulnerability affecting system security through improper input validation.'
-    }, ...prev.slice(0, 4)])
-  }
-
-  const getSeverityColor = (severity: CVEResult['severity']) => {
-    switch (severity) {
-      case 'critical': return 'text-red-500 border-red-500'
-      case 'high': return 'text-orange-500 border-orange-500'
-      case 'medium': return 'text-yellow-500 border-yellow-500'
-      case 'low': return 'text-green-500 border-green-500'
-      default: return 'text-gray-500 border-gray-500'
+    for (const step of searchStepsList) {
+      setSearchSteps(prev => 
+        prev.map(s => 
+          s.id === step.id ? { ...s, status: 'loading' } : s
+        )
+      )
+      await new Promise(resolve => setTimeout(resolve, 800))
+      setSearchSteps(prev => 
+        prev.map(s => 
+          s.id === step.id ? { ...s, status: 'complete' } : s
+        )
+      )
     }
+
+    setTimeout(() => {
+      setIsSearching(false)
+      router.push(`/dashboard/cve-results?query=${encodeURIComponent(query)}`)
+    }, 1000)
   }
 
   return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 100 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 100 }}
-      transition={{ duration: 0.8 }}
-      className="grid md:grid-cols-2 gap-8 items-start"
+    <motion.div 
+      id="cve-lookup" 
+      className="scroll-mt-24"
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
     >
-      <div className="space-y-6">
-        <BoxReveal boxColor="#10B981">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-xl bg-emerald-500/10">
-              <Database className="w-6 h-6 text-emerald-500" />
-            </div>
-            <h3 className="text-2xl font-bold">CVE Lookup</h3>
-          </div>
-        </BoxReveal>
-        
-        <BoxReveal boxColor="#10B981">
-          <div className="relative" ref={containerRef}>
-            <AnimatedBeam 
-              containerRef={containerRef}
-              fromRef={fromRef}
-              toRef={toRef}
-              curvature={0.5}
-              endYOffset={20}
-            />
-            <div ref={fromRef} className="absolute -left-2 top-1/2 w-1 h-1" />
-            <div ref={toRef} className="absolute -right-2 top-1/2 w-1 h-1" />
-            
-            <Card className="relative bg-white/5 backdrop-blur-sm border-white/10">
-              <div className="p-6 space-y-6">
-                <p className="text-gray-600 dark:text-gray-300">
-                  Search and analyze Common Vulnerabilities and Exposures (CVE) database.
-                  Stay informed about known security vulnerabilities and their impacts.
-                </p>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
-                    <Database className="w-5 h-5 text-emerald-500 mt-1 shrink-0" />
-                    <div>
-                      <p className="font-medium text-emerald-500">CVE Database</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Comprehensive data</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 p-3 rounded-xl bg-purple-500/5 border border-purple-500/10">
-                    <Shield className="w-5 h-5 text-purple-500 mt-1 shrink-0" />
-                    <div>
-                      <p className="font-medium text-purple-500">Severity Rating</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Risk assessment</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 p-3 rounded-xl bg-orange-500/5 border border-orange-500/10">
-                    <FileWarning className="w-5 h-5 text-orange-500 mt-1 shrink-0" />
-                    <div>
-                      <p className="font-medium text-orange-500">Impact Analysis</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Vulnerability scope</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/5 border border-blue-500/10">
-                    <FileKey className="w-5 h-5 text-blue-500 mt-1 shrink-0" />
-                    <div>
-                      <p className="font-medium text-blue-500">Patch Status</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Fix availability</p>
-                    </div>
-                  </div>
-                </div>
+      <div className="max-w-5xl mx-auto">
+        <motion.section
+          className="py-12 relative overflow-hidden max-w-7xl mx-auto rounded-2xl"
+        >
+          {/* Background Elements */}
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 via-emerald-50/80 to-white dark:from-emerald-950/50 dark:via-emerald-900/30 dark:to-black/50 rounded-2xl backdrop-blur-sm" />
+          <div
+            className="absolute inset-0 rounded-2xl opacity-[0.2] dark:opacity-[0.15]"
+            style={{
+              backgroundImage: `radial-gradient(circle at 1px 1px, rgb(34 197 94) 1px, transparent 0)`,
+              backgroundSize: "40px 40px",
+            }}
+          />
 
-                <div className="space-y-3">
+          <div className="container mx-auto px-4 relative">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center mb-12"
+            >
+              <motion.div 
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                className="inline-flex items-center gap-3 mb-4"
+              >
+                <div className="p-2">
+                  <WaveContainer className="p-3" color="34,197,94">
+                    <Database className="size-8 text-foreground dark:text-white" />
+                  </WaveContainer>
+                </div>
+                <div className="relative">
+                  <motion.h1 
+                    className="text-4xl font-bold text-foreground"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    CVE Lookup
+                  </motion.h1>
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ delay: 0.4, duration: 0.8 }}
+                    className="absolute -bottom-2 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-500 to-transparent"
+                  />
+                </div>
+              </motion.div>
+              <motion.p 
+                className="text-muted-foreground text-sm max-w-[600px] mx-auto"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                Search and analyze Common Vulnerabilities and Exposures (CVE) to
+                identify potential security risks and stay informed about the latest threats.
+              </motion.p>
+            </motion.div>
+
+            <div className="grid lg:grid-cols-2 gap-6">
+              {/* Left column - Search Interface */}
+              <div className="space-y-4">
+                <motion.div 
+                  className="bg-emerald-50/80 dark:bg-black/20 backdrop-blur-sm border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-6 shadow-lg"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                >
                   <div className="relative">
-                    <Input 
-                      type="text" 
-                      placeholder="Enter CVE ID or keywords..." 
-                      className="w-full pl-10 bg-white/5 border-white/10" 
+                    <Input
+                      type="text"
+                      placeholder="Enter CVE ID or keywords (e.g., CVE-2021-44228, Log4j)..."
+                      className="w-full bg-white dark:bg-black/40 border-emerald-200 dark:border-emerald-500/30 rounded-xl h-12 pl-4 pr-12 text-base placeholder:text-emerald-600/50 dark:placeholder:text-muted-foreground"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                     />
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  </div>
-                  <Button 
-                    className="w-full relative overflow-hidden group" 
-                    onClick={handleSearch}
-                    disabled={isSearching || !query}
-                  >
-                    <span className="relative z-10 flex items-center justify-center gap-2">
-                      {isSearching ? 'Searching...' : 'Search CVE Database'}
-                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                    </span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </BoxReveal>
-      </div>
-
-      <div className="space-y-6">
-        <Card className="p-6 bg-gray-900/50 backdrop-blur-xl border-gray-800 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-blue-500/10" />
-          <div className="relative space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  "w-2 h-2 rounded-full animate-pulse",
-                  isSearching ? "bg-emerald-500" : "bg-green-500"
-                )} />
-                <span className="text-sm font-medium text-gray-300">
-                  {isSearching ? 'Search in progress' : 'Ready to search'}
-                </span>
-              </div>
-              <Badge 
-                variant="outline" 
-                className={cn(
-                  "text-xs font-medium",
-                  isSearching ? "text-emerald-400 border-emerald-400" : "text-green-400 border-green-400"
-                )}
-              >
-                {isSearching ? 'searching' : 'ready'}
-              </Badge>
-            </div>
-
-            {isSearching && (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-4"
-              >
-                <div className="relative">
-                  <Progress value={progress} className="h-1.5 bg-gray-800" />
-                  <div className="absolute -top-2 -translate-y-full left-1/2 -translate-x-1/2 px-2 py-1 bg-emerald-500 text-xs rounded-md">
-                    {progress}%
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-400 font-medium">Searching database:</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { icon: Database, label: 'CVE Records', color: 'text-emerald-500' },
-                      { icon: Shield, label: 'CVSS Score', color: 'text-purple-500' },
-                      { icon: FileWarning, label: 'References', color: 'text-orange-500' },
-                      { icon: FileKey, label: 'Solutions', color: 'text-blue-500' },
-                    ].map((item, i) => (
-                      <div 
-                        key={item.label}
-                        className={cn(
-                          "flex items-center gap-2 p-2 rounded-lg",
-                          progress > i * 25 ? "bg-gray-800/50" : "bg-gray-800/20"
-                        )}
-                      >
-                        <item.icon className={cn("w-4 h-4", item.color)} />
-                        <span className="text-sm text-gray-300">{item.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {!isSearching && searchHistory.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="space-y-3"
-              >
-                <p className="text-sm text-gray-400 font-medium">Recent Lookups:</p>
-                <div className="space-y-3">
-                  {searchHistory.map((result, i) => (
-                    <div 
-                      key={i}
-                      className="p-3 rounded-lg bg-gray-800/30 space-y-2"
+                    <Button
+                      onClick={handleSearch}
+                      disabled={isSearching || !query.trim()}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-500 rounded-lg h-8 px-3"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-300">{result.id}</span>
-                        <Badge 
-                          variant="outline" 
-                          className={cn("text-xs", getSeverityColor(result.severity))}
-                        >
-                          {result.severity}
-                        </Badge>
+                      <Search className="size-4" />
+                    </Button>
+                  </div>
+                  <Button
+                    onClick={handleSearch}
+                    disabled={isSearching || !query.trim()}
+                    className="w-full mt-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-12"
+                  >
+                    {isSearching ? 'Analyzing Vulnerabilities...' : 'Search CVE Database'}
+                  </Button>
+                </motion.div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="bg-blue-50/80 dark:bg-blue-950/20 backdrop-blur-sm border border-blue-200 dark:border-blue-500/20 rounded-2xl p-4 flex flex-col items-center text-center group hover:bg-blue-100/80 dark:hover:bg-blue-900/30 transition-colors"
+                  >
+                    <div className="p-2 bg-blue-100 dark:bg-blue-500/10 rounded-xl mb-2 group-hover:bg-blue-200 dark:group-hover:bg-blue-500/20 transition-colors">
+                      <Shield className="size-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">Real-time Analysis</h3>
+                    <p className="text-xs text-blue-600/80 dark:text-blue-300/80">Instant vulnerability assessment</p>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="bg-amber-50/80 dark:bg-amber-950/20 backdrop-blur-sm border border-amber-200 dark:border-amber-500/20 rounded-2xl p-4 flex flex-col items-center text-center group hover:bg-amber-100/80 dark:hover:bg-amber-900/30 transition-colors"
+                  >
+                    <div className="p-2 bg-amber-100 dark:bg-amber-500/10 rounded-xl mb-2 group-hover:bg-amber-200 dark:group-hover:bg-amber-500/20 transition-colors">
+                      <AlertTriangle className="size-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <h3 className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">Severity Rating</h3>
+                    <p className="text-xs text-amber-600/80 dark:text-amber-300/80">CVSS score evaluation</p>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7 }}
+                    className="bg-rose-50/80 dark:bg-rose-950/20 backdrop-blur-sm border border-rose-200 dark:border-rose-500/20 rounded-2xl p-4 flex flex-col items-center text-center group hover:bg-rose-100/80 dark:hover:bg-rose-900/30 transition-colors"
+                  >
+                    <div className="p-2 bg-rose-100 dark:bg-rose-500/10 rounded-xl mb-2 group-hover:bg-rose-200 dark:group-hover:bg-rose-500/20 transition-colors">
+                      <Database className="size-5 text-rose-600 dark:text-rose-400" />
+                    </div>
+                    <h3 className="text-sm font-medium text-rose-700 dark:text-rose-400 mb-1">Comprehensive</h3>
+                    <p className="text-xs text-rose-600/80 dark:text-rose-300/80">Extensive CVE database</p>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.8 }}
+                    className="bg-violet-50/80 dark:bg-violet-950/20 backdrop-blur-sm border border-violet-200 dark:border-violet-500/20 rounded-2xl p-4 flex flex-col items-center text-center group hover:bg-violet-100/80 dark:hover:bg-violet-900/30 transition-colors"
+                  >
+                    <div className="p-2 bg-violet-100 dark:bg-violet-500/10 rounded-xl mb-2 group-hover:bg-violet-200 dark:group-hover:bg-violet-500/20 transition-colors">
+                      <Zap className="size-5 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <h3 className="text-sm font-medium text-violet-700 dark:text-violet-400 mb-1">Fast Results</h3>
+                    <p className="text-xs text-violet-600/80 dark:text-violet-300/80">Quick response time</p>
+                  </motion.div>
+                </div>
+              </div>
+
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-emerald-50/80 dark:bg-black/20 backdrop-blur-sm border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-6 flex flex-col items-center justify-center min-h-[400px] relative overflow-hidden group"
+              >
+                <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/5 to-transparent opacity-50" />
+                
+                {/* Results or Loading State */}
+                {!isSearching && !searchSteps.length && (
+                  <motion.div
+                    className="flex flex-col items-center justify-center text-center p-8"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ 
+                      opacity: [0.5, 1],
+                      y: [10, -10]
+                    }}
+                    transition={{
+                      repeat: Infinity,
+                      repeatType: "reverse",
+                      duration: 2,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    <motion.div
+                      animate={{
+                        scale: [1, 1.1, 1],
+                      }}
+                      transition={{
+                        repeat: Infinity,
+                        repeatType: "reverse",
+                        duration: 4,
+                        ease: "easeInOut"
+                      }}
+                    >
+                      <Database className="size-16 text-emerald-500/50 mb-4" />
+                    </motion.div>
+                    <h3 className="text-lg font-medium text-muted-foreground mb-2">Ready to Search</h3>
+                    <p className="text-sm text-muted-foreground/80">
+                      Enter a CVE ID or keyword to begin vulnerability analysis
+                    </p>
+                  </motion.div>
+                )}
+                {isSearching && (
+                  <div className="space-y-4 w-full max-w-md mx-auto">
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/5 dark:bg-emerald-400/5 backdrop-blur-sm border border-emerald-200/20 dark:border-emerald-400/30 shadow-lg shadow-emerald-500/5 dark:shadow-emerald-400/10">
+                      <div className="rounded-lg bg-emerald-100 dark:bg-emerald-400/20 p-2">
+                        <Loader2 className="size-5 text-emerald-600 dark:text-emerald-400 animate-spin" />
                       </div>
-                      <p className="text-sm text-gray-400 line-clamp-2">{result.description}</p>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-500">
-                          {new Date(result.timestamp).toLocaleTimeString()}
-                        </span>
-                        <Button variant="ghost" size="sm" className="h-7 px-2">
-                          View Details
-                        </Button>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Initializing Scan</h3>
+                        <p className="text-xs text-emerald-600/80 dark:text-emerald-400/90">Preparing vulnerability analysis</p>
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-500/5 dark:bg-blue-400/5 backdrop-blur-sm border border-blue-200/20 dark:border-blue-400/30 shadow-lg shadow-blue-500/5 dark:shadow-blue-400/10">
+                      <div className="rounded-lg bg-blue-100 dark:bg-blue-400/20 p-2">
+                        <Search className="size-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-blue-700 dark:text-blue-400">Database Search</h3>
+                        <p className="text-xs text-blue-600/80 dark:text-blue-400/90">Searching CVE records</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/5 dark:bg-amber-400/5 backdrop-blur-sm border border-amber-200/20 dark:border-amber-400/30 shadow-lg shadow-amber-500/5 dark:shadow-amber-400/10">
+                      <div className="rounded-lg bg-amber-100 dark:bg-amber-400/20 p-2">
+                        <Shield className="size-5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-amber-700 dark:text-amber-400">Risk Analysis</h3>
+                        <p className="text-xs text-amber-600/80 dark:text-amber-400/90">Evaluating security impact</p>
+                        <div className="mt-2 h-1.5 bg-amber-200/20 dark:bg-amber-400/20 rounded-full overflow-hidden">
+                          <div className="h-full w-3/4 bg-amber-500 dark:bg-amber-400 rounded-full animate-pulse" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-rose-500/5 dark:bg-rose-400/5 backdrop-blur-sm border border-rose-200/20 dark:border-rose-400/30 shadow-lg shadow-rose-500/5 dark:shadow-rose-400/10">
+                      <div className="rounded-lg bg-rose-100 dark:bg-rose-400/20 p-2">
+                        <AlertTriangle className="size-5 text-rose-600 dark:text-rose-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-rose-700 dark:text-rose-400">Severity Check</h3>
+                        <p className="text-xs text-rose-600/80 dark:text-rose-400/90">Calculating CVSS scores</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </motion.div>
-            )}
+            </div>
           </div>
-        </Card>
+        </motion.section>
       </div>
     </motion.div>
   )
