@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Github, Twitter, Linkedin } from "lucide-react"
+import { Github, Linkedin } from "lucide-react"
 import { Logo } from "./Logo"
 
 export function Footer() {
@@ -15,9 +15,6 @@ export function Footer() {
             <div className="flex space-x-4 mt-4">
               <Link href="https://github.com/btakiso/tlascanner" target="_blank" className="hover:text-primary transition-colors">
                 <Github className="h-4 w-4" />
-              </Link>
-              <Link href="#" className="hover:text-primary transition-colors">
-                <Twitter className="h-4 w-4" />
               </Link>
               <Link href="#" className="hover:text-primary transition-colors">
                 <Linkedin className="h-4 w-4" />
@@ -55,11 +52,6 @@ export function Footer() {
               <li>
                 <Link href="/contact" className="hover:text-primary transition-colors">
                   Contact
-                </Link>
-              </li>
-              <li>
-                <Link href="/blog" className="hover:text-primary transition-colors">
-                  Blog
                 </Link>
               </li>
             </ul>
