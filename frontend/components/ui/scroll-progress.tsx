@@ -4,7 +4,10 @@ import * as React from "react"
 import { motion, useScroll, useSpring } from "framer-motion"
 
 export function ScrollProgress() {
-  const { scrollYProgress } = useScroll()
+  const { scrollYProgress } = useScroll({
+    offset: ["start start", "end end"],
+  })
+  
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 100,
     damping: 30,
@@ -18,4 +21,3 @@ export function ScrollProgress() {
     />
   )
 }
-

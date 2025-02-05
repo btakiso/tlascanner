@@ -1,83 +1,156 @@
 "use client"
 
-import type React from "react"
-import { useEffect, useRef } from "react"
-import { motion, useAnimation, useInView } from "framer-motion"
+import { motion } from "framer-motion"
+import { RefObject, useEffect, useId, useState } from "react"
+import { cn } from "@/lib/utils"
 
-interface AnimatedBeamProps {
-  containerRef: React.RefObject<HTMLDivElement>
-  fromRef: React.RefObject<HTMLDivElement>
-  toRef: React.RefObject<HTMLDivElement>
+export interface AnimatedBeamProps {
+  className?: string
+  containerRef: RefObject<HTMLElement | null>
+  fromRef: RefObject<HTMLElement | null>
+  toRef: RefObject<HTMLElement | null>
   curvature?: number
-  endYOffset?: number
   reverse?: boolean
+  pathColor?: string
+  pathWidth?: number
+  pathOpacity?: number
+  gradientStartColor?: string
+  gradientStopColor?: string
+  delay?: number
+  duration?: number
+  startXOffset?: number
+  startYOffset?: number
+  endXOffset?: number
+  endYOffset?: number
 }
 
-export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
+export const AnimatedBeam = ({
+  className,
   containerRef,
   fromRef,
   toRef,
   curvature = 0,
-  endYOffset = 0,
   reverse = false,
-}) => {
-  const pathRef = useRef<SVGPathElement>(null)
-  const controls = useAnimation()
-  const isInView = useInView(containerRef)
-
-  useEffect(() => {
-    if (isInView) {
-      controls.start({
-        pathLength: 1,
-        transition: { duration: 1.5, ease: "easeInOut" },
-      })
-    } else {
-      controls.start({ pathLength: 0 })
-    }
-  }, [isInView, controls])
+  duration = Math.random() * 3 + 4,
+  delay = 0,
+  pathColor = "#7c3aed",
+  pathWidth = 2,
+  pathOpacity = 0.5,
+  gradientStartColor = "#7c3aed",
+  gradientStopColor = "#9333ea",
+  startXOffset = 0,
+  startYOffset = 0,
+  endXOffset = 0,
+  endYOffset = 0,
+}: AnimatedBeamProps) => {
+  const id = useId()
+  const [path, setPath] = useState("")
+  const [svgDimensions, setSvgDimensions] = useState({ width: 0, height: 0 })
 
   useEffect(() => {
     const updatePath = () => {
-      if (!containerRef.current || !fromRef.current || !toRef.current || !pathRef.current) return
+      if (!containerRef.current || !fromRef.current || !toRef.current) return
 
       const containerRect = containerRef.current.getBoundingClientRect()
       const fromRect = fromRef.current.getBoundingClientRect()
       const toRect = toRef.current.getBoundingClientRect()
 
-      const startX = fromRect.left + fromRect.width / 2 - containerRect.left
-      const startY = fromRect.top + fromRect.height / 2 - containerRect.top
-      const endX = toRect.left + toRect.width / 2 - containerRect.left
-      const endY = toRect.top + toRect.height / 2 - containerRect.top + endYOffset
+      const svgWidth = containerRect.width
+      const svgHeight = containerRect.height
+      setSvgDimensions({ width: svgWidth, height: svgHeight })
 
-      const midX = (startX + endX) / 2
-      const midY = (startY + endY) / 2 + curvature
+      const startX = fromRect.left - containerRect.left + fromRect.width / 2 + startXOffset
+      const startY = fromRect.top - containerRect.top + fromRect.height / 2 + startYOffset
+      const endX = toRect.left - containerRect.left + toRect.width / 2 + endXOffset
+      const endY = toRect.top - containerRect.top + toRect.height / 2 + endYOffset
 
-      const path = `M${startX},${startY} Q${midX},${midY} ${endX},${endY}`
-      pathRef.current.setAttribute("d", path)
+      const controlX = (startX + endX) / 2
+      const controlY = Math.min(startY, endY) - curvature
+
+      const d = `M${startX},${startY} Q${controlX},${controlY} ${endX},${endY}`
+      setPath(d)
     }
 
     updatePath()
     window.addEventListener("resize", updatePath)
-    return () => window.removeEventListener("resize", updatePath)
-  }, [containerRef, fromRef, toRef, curvature, endYOffset])
+
+    const observer = new ResizeObserver(updatePath)
+    if (containerRef.current) {
+      observer.observe(containerRef.current)
+    }
+
+    return () => {
+      window.removeEventListener("resize", updatePath)
+      observer.disconnect()
+    }
+  }, [containerRef, fromRef, toRef, curvature, startXOffset, startYOffset, endXOffset, endYOffset])
 
   return (
-    <svg className="absolute inset-0 w-full h-full pointer-events-none">
-      <motion.path
-        ref={pathRef}
-        fill="none"
-        stroke="url(#gradient)"
-        strokeWidth="2"
-        initial={{ pathLength: 0 }}
-        animate={controls}
-      />
+    <svg
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        overflow: "visible",
+        zIndex: 10,
+      }}
+      className={cn("absolute", className)}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+    >
       <defs>
-        <linearGradient id="gradient" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor={reverse ? "#8B5CF6" : "#3B82F6"} />
-          <stop offset="100%" stopColor={reverse ? "#3B82F6" : "#8B5CF6"} />
+        <linearGradient
+          id={`beam-gradient-${id}`}
+          gradientUnits="userSpaceOnUse"
+          x1="0%"
+          y1="0%"
+          x2="100%"
+          y2="0%"
+        >
+          <stop offset="0%" stopColor={gradientStartColor} />
+          <stop offset="100%" stopColor={gradientStopColor} />
         </linearGradient>
+        <filter id={`glow-${id}`}>
+          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
       </defs>
+
+      <g filter={`url(#glow-${id})`}>
+        <motion.path
+          d={path}
+          stroke={pathColor}
+          strokeWidth={pathWidth}
+          strokeOpacity={pathOpacity}
+          strokeLinecap="round"
+          fill="none"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{
+            pathLength: { duration: duration, ease: "easeInOut", repeat: Infinity },
+            opacity: { duration: 0.5 },
+          }}
+        />
+        <motion.path
+          d={path}
+          stroke={`url(#beam-gradient-${id})`}
+          strokeWidth={pathWidth}
+          strokeOpacity={pathOpacity * 1.5}
+          strokeLinecap="round"
+          fill="none"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{
+            pathLength: { duration: duration, ease: "easeInOut", repeat: Infinity, delay: 0.1 },
+            opacity: { duration: 0.5 },
+          }}
+        />
+      </g>
     </svg>
   )
 }
-
