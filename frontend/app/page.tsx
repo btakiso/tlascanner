@@ -14,7 +14,7 @@ export default function HomePage() {
       <div className="min-h-screen flex flex-col relative overflow-hidden">
         <CyberBackground />
         <NavBar />
-        <main className="flex-grow z-10">
+        <main className="flex-grow z-10 pt-16">
           <Hero />
           <DetailedFeatures />
           <MarqueeDemo />
