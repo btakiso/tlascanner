@@ -27,21 +27,25 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 ## Target Audience
 
 ### IT Professionals and Security Analysts
+
 ✅ Professional-grade UI/UX
 ❌ Advanced scanning options
 ❌ Detailed technical reports
 
 ### SMBs (Small and Medium Businesses)
+
 ✅ Easy-to-use interface
 ❌ Quick scan capabilities
 ❌ Basic threat detection
 
 ### Freelancers and Developers
+
 ✅ Code-focused interface
 ❌ API integration options
 ❌ Developer documentation
 
 ### General Tech Enthusiasts
+
 ✅ Intuitive navigation
 ✅ Clear result presentation
 ❌ Educational resources
@@ -49,50 +53,59 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 ## Core Features
 
 ### URL Scanner
+
 ✅ UI Implementation
 ✅ Basic form validation
 ❌ Malicious Content Identification
-  - ❌ Domain reputation checking
-  - ❌ URL pattern analysis
+
+- ❌ Domain reputation checking
+- ❌ URL pattern analysis
 ❌ Behavioral Analysis
-  - ❌ Heuristic checks
-  - ❌ Threat pattern matching
+- ❌ Heuristic checks
+- ❌ Threat pattern matching
 
 ### CVE Lookup and Analysis
+
 ✅ UI Implementation
 ✅ Search interface
 ❌ NVD Integration
-  - ❌ Real-time CVE data
-  - ❌ Vulnerability scoring
+
+- ❌ Real-time CVE data
+- ❌ Vulnerability scoring
 ❌ Patch Recommendations
-  - ❌ Mitigation strategies
-  - ❌ Update guidance
+- ❌ Mitigation strategies
+- ❌ Update guidance
 
 ### File Scanning
+
 ✅ UI Implementation
 ✅ File upload interface
 ❌ File Integrity Checks
-  - ❌ Checksum validation
-  - ❌ Format verification
+
+- ❌ Checksum validation
+- ❌ Format verification
 ❌ Deep Analysis
-  - ❌ Signature matching
-  - ❌ Behavioral analysis
+- ❌ Signature matching
+- ❌ Behavioral analysis
 
 ### Dashboard and Reporting
+
 ✅ Basic dashboard layout
 ✅ Responsive design
 ❌ Real-Time Monitoring
-  - ❌ Scan status tracking
-  - ❌ Queue management
+
+- ❌ Scan status tracking
+- ❌ Queue management
 ❌ Downloadable Reports
-  - ❌ PDF generation
-  - ❌ CSV export
+- ❌ PDF generation
+- ❌ CSV export
 
 ## Technical Implementation
 
 ### Tech Stack
 
 #### Frontend ✅
+
 ✅ Next.js implementation
 ✅ Tailwind CSS integration
 ✅ ShadCN UI components
@@ -102,6 +115,7 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 ✅ Modern animations
 
 #### Backend 🚧
+
 ❌ Node.js setup
 ❌ Express configuration
 ❌ TypeScript implementation
@@ -110,12 +124,14 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 ❌ Request validation
 
 #### Infrastructure 🚧
+
 ❌ Vercel deployment
 ❌ Database setup
 ❌ API integration
 ❌ Monitoring configuration
 
 ### Data Sources (Pending Integration)
+
 ❌ VirusTotal API
 ❌ NVD API
 ❌ MalwareBazaar
@@ -127,22 +143,26 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 ### Current Progress
 
 #### Phase 1: Planning and Research ✅
+
 ✅ Define scope and requirements
 ✅ Research data sources
 ✅ Design UI mockups
 
 #### Phase 2: Initial Setup ✅
+
 ✅ Repository structure
 ✅ Development environment
 ❌ CI/CD pipelines
 
 #### Phase 3: Core Development 🚧
+
 ✅ Frontend UI components
 ❌ Backend API endpoints
 ❌ Database implementation
 ❌ External API integration
 
 #### Phase 4-6: Pending
+
 ❌ Testing and QA
 ❌ Production deployment
 ❌ Post-launch enhancements
@@ -150,6 +170,7 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 ### Development Workflow
 
 #### Current Implementation
+
 ✅ Git version control
 ✅ Component-based development
 ✅ Modern UI/UX practices
@@ -159,6 +180,7 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 ## Architecture Details
 
 ### Frontend Architecture (Current)
+
 ✅ Next.js 14 App Router
 ✅ React Server Components
 ✅ Tailwind CSS styling
@@ -169,6 +191,7 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 ❌ State management
 
 ### Backend Architecture (Pending)
+
 ❌ RESTful API design
 ❌ Authentication system
 ❌ Rate limiting
@@ -177,6 +200,7 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 ❌ Security measures
 
 ### Database Design (Pending)
+
 ❌ Schema design
 ❌ Migration system
 ❌ Data validation
@@ -184,6 +208,7 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 ❌ Backup strategy
 
 ### Current Focus Areas
+
 ✅ Modern UI implementation
 ✅ Responsive design
 ✅ Component architecture
