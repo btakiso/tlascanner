@@ -77,31 +77,36 @@ function SecurityCard({
   icon: React.ElementType
 }) {
   return (
-    <div className={cn(
-      "relative min-w-[350px] max-w-[350px] cursor-pointer rounded-xl border p-4 mx-2 bg-white dark:bg-gray-900",
-      "hover:shadow-md transition-shadow duration-200"
-    )}>
-      <div className="space-y-3">
-        {/* Top row with icon and ID */}
-        <div className="flex items-center gap-2">
-          <Icon className={cn(
-            "h-5 w-5",
-            severity === "Critical" && "text-red-600",
-            severity === "High" && "text-orange-600",
-            severity === "Medium" && "text-yellow-600"
-          )} />
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            {type} • {id}
+    <div className="flex-none w-[350px]">
+      <div className="group relative p-4 bg-background/50 backdrop-blur-sm rounded-xl border border-border shadow-lg hover:shadow-blue-500/5 transition-all duration-300">
+        {/* Top row with icon and type/id */}
+        <div className="flex items-center gap-3 mb-2">
+          <div className={cn(
+            "p-2 rounded-xl shadow-inner",
+            type === "CVE" && "bg-blue-500/10",
+            type === "Malware" && "bg-red-500/10",
+            type === "Threat" && "bg-amber-500/10"
+          )}>
+            <Icon className={cn(
+              "w-5 h-5",
+              type === "CVE" && "text-blue-400",
+              type === "Malware" && "text-red-400",
+              type === "Threat" && "text-amber-400"
+            )} />
+          </div>
+          <div>
+            <span className="text-xs font-medium text-muted-foreground">{type}</span>
+            <span className="text-xs text-muted-foreground/80 ml-2">{id}</span>
           </div>
         </div>
 
         {/* Title */}
-        <h3 className="text-base font-medium text-gray-900 dark:text-white">
+        <h3 className="text-sm font-semibold text-foreground mb-1">
           {title}
         </h3>
 
         {/* Description */}
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        <p className="text-sm text-muted-foreground">
           {description}
         </p>
 
@@ -109,13 +114,13 @@ function SecurityCard({
         <div className="flex items-center gap-2">
           <span className={cn(
             "px-2 py-0.5 text-xs font-medium rounded-full",
-            severity === "Critical" && "bg-red-100 text-red-700",
-            severity === "High" && "bg-orange-100 text-orange-700",
-            severity === "Medium" && "bg-yellow-100 text-yellow-700"
+            severity === "Critical" && "bg-red-500/10 text-red-400",
+            severity === "High" && "bg-orange-500/10 text-orange-400",
+            severity === "Medium" && "bg-yellow-500/10 text-yellow-400"
           )}>
             {severity}
           </span>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted-foreground/80">
             {date}
           </span>
         </div>
@@ -129,15 +134,17 @@ const secondRow = securityUpdates.slice(securityUpdates.length / 2);
 
 export function MarqueeDemo() {
   return (
-    <div className="relative flex h-[450px] w-full flex-col items-center overflow-hidden rounded-lg bg-background">
-      <div className="w-full py-2">
+    <div className="relative flex h-[450px] w-full flex-col items-center overflow-hidden">
+      <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:50px_50px]" />
+      
+      <div className="relative z-10 w-full py-2">
         <div className="animate-marquee-reverse flex gap-2 px-4">
           {[...firstRow, ...firstRow, ...firstRow].map((update, i) => (
             <SecurityCard key={`${update.id}-${i}`} {...update} />
           ))}
         </div>
       </div>
-      <div className="w-full py-2">
+      <div className="relative z-10 w-full py-2">
         <div className="animate-marquee flex gap-2 px-4">
           {[...secondRow, ...secondRow, ...secondRow].map((update, i) => (
             <SecurityCard key={`${update.id}-${i}`} {...update} />
@@ -145,9 +152,9 @@ export function MarqueeDemo() {
         </div>
       </div>
       {/* Left fade */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-background to-transparent"></div>
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-background to-transparent z-20"></div>
       {/* Right fade */}
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-background to-transparent"></div>
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-background to-transparent z-20"></div>
     </div>
   )
 }

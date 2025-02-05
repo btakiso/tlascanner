@@ -4,10 +4,22 @@ import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, Shield, Scan, FileSearch, Database, Clock } from "lucide-react"
-import { useRef } from "react"
+import { useRef, useState, useEffect } from "react"
+
+const products = [
+  "URL Scanner",
+  "File Scanner",
+  "CVE Database",
+  "Malware Detection",
+  "Threat Analysis"
+]
 
 export function Hero() {
   const targetRef = useRef<HTMLDivElement>(null)
+  const [displayText, setDisplayText] = useState("")
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [isTyping, setIsTyping] = useState(true)
+  
   const { scrollYProgress } = useScroll({
     target: targetRef,
     offset: ["start start", "end start"]
@@ -17,11 +29,39 @@ export function Hero() {
   const scale = useTransform(scrollYProgress, [0, 0.3], [1, 0.95])
   const y = useTransform(scrollYProgress, [0, 0.3], [0, 50])
 
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const targetText = products[currentIndex];
+    
+    if (isTyping && displayText !== targetText) {
+      timeoutId = setTimeout(() => {
+        // Calculate how many characters to add (1-3 randomly)
+        const charsToAdd = Math.min(
+          Math.floor(Math.random() * 3) + 1,
+          targetText.length - displayText.length
+        );
+        setDisplayText(targetText.slice(0, displayText.length + charsToAdd));
+      }, Math.random() * 30 + 20); // Random delay between 20-50ms
+    } else if (isTyping && displayText === targetText) {
+      timeoutId = setTimeout(() => {
+        setIsTyping(false);
+      }, 2000); // Pause at the end
+    } else {
+      timeoutId = setTimeout(() => {
+        setDisplayText("");
+        setCurrentIndex((prev) => (prev + 1) % products.length);
+        setIsTyping(true);
+      }, 200);
+    }
+
+    return () => clearTimeout(timeoutId);
+  }, [displayText, currentIndex, isTyping]);
+
   return (
-    <section className="relative min-h-[90vh] flex items-center py-20 overflow-hidden bg-gradient-to-br from-background via-blue-950/10 to-background" ref={targetRef}>
+    <section className="relative min-h-[90vh] flex items-center py-20 overflow-hidden" ref={targetRef}>
       {/* Background Elements */}
       <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:50px_50px]" />
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-background/80 to-background" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/10 to-background/20" />
 
       <AnimatePresence>
         <motion.div 
@@ -39,9 +79,9 @@ export function Hero() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6, ease: "easeOut" }}
               >
-                <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                <div className="flex items-center gap-2 bg-background/50 backdrop-blur-sm px-3 py-1.5 rounded-full border border-border shadow-lg">
                   <Clock className="w-4 h-4 text-blue-400" />
-                  <span className="text-sm text-gray-300">Real-time Scanning</span>
+                  <span className="text-sm text-muted-foreground">Real-time Scanning</span>
                 </div>
               </motion.div>
 
@@ -56,25 +96,40 @@ export function Hero() {
               </motion.div>
 
               {/* Heading */}
-              <motion.h1
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-                className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-blue-500 to-purple-600 leading-tight pl-1"
-              >
-                Advanced Malware
-                <br />
-                & Vulnerability Scanner
-              </motion.h1>
+              <div className="pl-1">
+                <motion.h1
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
+                  className="text-4xl md:text-5xl font-bold leading-tight"
+                >
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-blue-500 to-purple-600">
+                    Advanced
+                  </span>
+                  <br />
+                  <div className="h-[1.5em] flex items-center">
+                    <div className="relative">
+                      <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-blue-500 to-purple-600">
+                        {displayText}
+                      </span>
+                      <motion.span
+                        animate={{ opacity: [1, 0] }}
+                        transition={{ duration: 0.5, repeat: Infinity, repeatType: "reverse" }}
+                        className="inline-block ml-0.5 w-[3px] h-[1em] bg-purple-500 align-middle"
+                      />
+                    </div>
+                  </div>
+                </motion.h1>
+              </div>
 
               {/* Subtitle */}
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.1, ease: "easeOut" }}
-                className="text-base text-gray-400 pl-1"
+                className="text-base text-muted-foreground pl-1"
               >
-                Our advanced malware scanner helps detect threats and manage vulnerabilities in real-time.
+                Our advanced security tools help detect threats and manage vulnerabilities in real-time.
               </motion.p>
 
               {/* Search Form */}
@@ -85,11 +140,11 @@ export function Hero() {
                 className="relative"
               >
                 <div className="relative flex items-center group">
-                  <Search className="absolute left-4 w-5 h-5 text-gray-400" />
+                  <Search className="absolute left-4 w-5 h-5 text-muted-foreground" />
                   <Input
                     type="text"
                     placeholder="Enter URL, IP, domain, file hash..."
-                    className="pl-12 pr-32 h-12 text-base bg-white/5 border-2 border-gray-400/30 dark:border-gray-500/30 text-gray-800 dark:text-gray-100 placeholder:text-gray-500 rounded-2xl hover:bg-white/10 hover:border-white/30 transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 shadow-xl"
+                    className="pl-12 pr-32 h-12 text-base bg-background/50 backdrop-blur-sm border border-border text-foreground placeholder:text-muted-foreground rounded-2xl hover:bg-background/60 hover:border-accent transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 shadow-lg"
                   />
                   <div className="absolute right-2">
                     <Button
@@ -107,7 +162,7 @@ export function Hero() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.3 }}
-                className="text-sm text-gray-500 pl-1"
+                className="text-sm text-muted-foreground pl-1"
               >
                 • Free to use • No login required
               </motion.div>
@@ -120,15 +175,15 @@ export function Hero() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
                 whileHover={{ scale: 1.02, y: -5 }}
-                className="absolute top-20 right-0 bg-white dark:bg-white/5 backdrop-blur-lg rounded-2xl p-4 border border-gray-200 dark:border-white/10 shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 w-64"
+                className="absolute top-20 right-0 bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-blue-500/10 transition-all duration-300 w-64"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-500/10 shadow-inner">
-                    <Scan className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <div className="p-2 rounded-xl bg-blue-500/10 shadow-inner">
+                    <Scan className="w-5 h-5 text-blue-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">URL Scanner</h3>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Real-time threat detection</p>
+                    <h3 className="font-semibold text-foreground text-sm">URL Scanner</h3>
+                    <p className="text-xs text-muted-foreground">Real-time threat detection</p>
                   </div>
                 </div>
               </motion.div>
@@ -138,33 +193,33 @@ export function Hero() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
                 whileHover={{ scale: 1.02, y: -5 }}
-                className="absolute top-60 left-0 bg-white dark:bg-white/5 backdrop-blur-lg rounded-2xl p-4 border border-gray-200 dark:border-white/10 shadow-2xl hover:shadow-purple-500/10 transition-all duration-300 w-64"
+                className="absolute top-60 left-0 bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-purple-500/10 transition-all duration-300 w-64"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-500/10 shadow-inner">
-                    <FileSearch className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <div className="p-2 rounded-xl bg-purple-500/10 shadow-inner">
+                    <FileSearch className="w-5 h-5 text-purple-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">File Scanner</h3>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Deep malware analysis</p>
+                    <h3 className="font-semibold text-foreground text-sm">File Scanner</h3>
+                    <p className="text-xs text-muted-foreground">Malware detection</p>
                   </div>
                 </div>
               </motion.div>
 
               <motion.div
-                initial={{ opacity: 0, x: 20 }}
+                initial={{ opacity: 0, x: 0 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.6, ease: "easeOut" }}
                 whileHover={{ scale: 1.02, y: -5 }}
-                className="absolute top-96 right-0 bg-white dark:bg-white/5 backdrop-blur-lg rounded-2xl p-4 border border-gray-200 dark:border-white/10 shadow-2xl hover:shadow-green-500/10 transition-all duration-300 w-64"
+                className="absolute top-96 right-0 bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-green-500/10 transition-all duration-300 w-64"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-green-100 dark:bg-green-500/10 shadow-inner">
-                    <Database className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  <div className="p-2 rounded-xl bg-green-500/10 shadow-inner">
+                    <Database className="w-5 h-5 text-green-400" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">CVE Lookup</h3>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Vulnerability tracking</p>
+                    <h3 className="font-semibold text-foreground text-sm">CVE Database</h3>
+                    <p className="text-xs text-muted-foreground">Vulnerability insights</p>
                   </div>
                 </div>
               </motion.div>
