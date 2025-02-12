@@ -134,7 +134,8 @@ export function CyberBackground() {
   }, [])
 
   return (
-    <div className="fixed inset-0 -z-10">
+    <div className="fixed inset-0 -z-10 pointer-events-none">
+      <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/50 to-background/80" />
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"

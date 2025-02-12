@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input"
 import { BoxReveal } from "@/components/ui/box-reveal"
 import { Shield, FileWarning, FileKey, FileSearch } from "lucide-react"
 import { AnimatedSpan, Terminal, TypingAnimation } from "@/components/ui/terminal"
-import { WaveContainer } from "../ui/wave-container";
+import { WaveContainer } from "../ui/wave-container"
+import { useRouter } from "next/navigation"
 
 export function URLScanner() {
+  const router = useRouter()
   const ref = useRef(null)
   const terminalRef = useRef(null)
   const isInView = useInView(ref, { once: false, margin: "-100px" })
@@ -53,10 +55,16 @@ export function URLScanner() {
     }
   }, [isInView])
 
-  const handleScan = () => {
+  const handleScan = async () => {
     setDemoStep(0)
     setIsScanning(true)
-    setTimeout(() => setDemoStep(1), 500)
+    
+    // Simulate a quick scan process
+    setTimeout(() => {
+      setIsScanning(false)
+      // Redirect to scan results page
+      router.push(`/scan-results/url?target=${encodeURIComponent(url)}`)
+    }, 1500)
   }
 
   return (

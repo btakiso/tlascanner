@@ -75,7 +75,7 @@ export function CVELookup() {
 
     setTimeout(() => {
       setIsSearching(false)
-      router.push(`/dashboard/cve-results?query=${encodeURIComponent(query)}`)
+      router.push(`/scan-results/cve?id=${encodeURIComponent(query)}`)
     }, 1000)
   }
 
