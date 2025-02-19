@@ -4,14 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Shield, ShieldAlert, Globe, Link2, AlertTriangle, CheckCircle, AlertOctagon, Info, Users, HelpCircle, Tag, FileText } from "lucide-react";
+import { Shield, ShieldAlert, Globe, Link2, AlertTriangle, CheckCircle, AlertOctagon, Info, Users, HelpCircle, Tag, FileText, Clock, Activity, Star, ThumbsUp } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { UserAvatar } from "@/components/ui/user-avatar";
-import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Progress } from "@/components/ui/progress";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
+import { config } from "@/app/config";
+import { ThreatLevel, BaseScanStats } from "@/types/common";
+import { URLScanResponse } from "@/types/urlScan";
+import { ScanType, ScanStatus, DataSource } from "@/types/security";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -30,163 +32,167 @@ ChartJS.register(
   ChartTooltip,
 );
 
-interface EngineResult {
-  engine: string;
-  category: string;
+type VendorCategory = 'malicious' | 'suspicious' | 'harmless' | 'undetected';
+type BadgeVariant = "destructive" | "secondary" | "default" | "outline";
+type SortOrder = 'threat' | 'name' | 'updated';
+
+interface Vendor {
+  name: string;
+  category: VendorCategory;
   result: string;
+  method?: string;
+  update?: string;
 }
 
-interface CommunityReport {
-  user: string;
-  avatar: string;
-  comment: string;
-  date: string;
-  votes: number;
-}
-
-interface CommunityFeedback {
-  reports: CommunityReport[];
-  totalReports: number;
-  riskScore: number;
-}
-
-interface ScanStats {
-  malicious: number;
-  suspicious: number;
-  harmless: number;
-  undetected: number;
-}
-
-interface ScanResult {
-  url: string;
-  scanDate: string;
-  stats: ScanStats;
-  lastAnalysisResults: EngineResult[];
-  categories: string[];
-  lastHttpResponse: number;
-  reputation: number;
-  communityFeedback: CommunityFeedback;
+interface VendorFilters {
+  category: 'all' | VendorCategory;
+  search: string;
+  sortOrder: SortOrder;
 }
 
 export default function URLScanResults() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
-  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [scanResult, setScanResult] = useState<URLScanResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [vendorFilters, setVendorFilters] = useState<VendorFilters>({
+    category: 'all',
+    search: '',
+    sortOrder: 'threat'
+  });
   
-  const targetUrl = searchParams.get('target');
+  const scanId = searchParams.get('scanId');
 
   useEffect(() => {
     const fetchScanResults = async () => {
+      if (!scanId) return;
+      
       setIsLoading(true);
+      setError(null);
+      
       try {
-        // Simulated scan result data
-        const mockResult: ScanResult = {
-          url: targetUrl || "https://example.com",
-          scanDate: new Date().toISOString(),
-          stats: {
-            malicious: 2,
-            suspicious: 1,
-            harmless: 50,
-            undetected: 7,
+        const response = await fetch(`${config.API_URL}${config.SCAN_ENDPOINTS.RESULTS.URL}/${scanId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
           },
-          lastAnalysisResults: [
-            { engine: "Security Engine 1", category: "malicious", result: "phishing" },
-            { engine: "Security Engine 2", category: "clean", result: "clean" },
-          ],
-          categories: ["phishing", "malware"],
-          lastHttpResponse: 200,
-          reputation: -25,
-          communityFeedback: {
-            reports: [
-              {
-                user: "SecurityAnalyst",
-                avatar: "/avatars/analyst1.png",
-                comment: "This URL exhibits characteristics of a phishing attempt targeting financial institutions.",
-                date: "2024-02-10T15:30:00Z",
-                votes: 12
-              },
-              {
-                user: "ThreatHunter",
-                avatar: "/avatars/hunter1.png",
-                comment: "Domain was registered recently and uses suspicious redirects.",
-                date: "2024-02-09T18:45:00Z",
-                votes: 8
-              }
-            ],
-            totalReports: 15,
-            riskScore: 75
-          }
-        };
+        });
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setScanResult(mockResult);
-      } catch (error) {
-        console.error('Error loading scan results:', error);
+        if (!response.ok) {
+          throw new Error('Failed to fetch scan results');
+        }
+
+        const data: URLScanResponse = await response.json();
+        if (data.status === 'success' && data.data?.scanId && data.data?.url) {
+          setScanResult(data);
+        } else {
+          throw new Error('Invalid scan result format');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred while fetching scan results');
       } finally {
         setIsLoading(false);
       }
     };
 
-    if (targetUrl) {
-      fetchScanResults();
+    fetchScanResults();
+  }, [scanId]);
+
+  const getThreatOrder = (category: string): number => {
+    const threatOrder: Record<VendorCategory, number> = {
+      malicious: 4,
+      suspicious: 3,
+      harmless: 2,
+      undetected: 1
+    };
+    return threatOrder[category.toLowerCase() as VendorCategory] || 0;
+  };
+
+  const getFilteredVendors = (results: Record<string, any>): Vendor[] => {
+    let vendors: Vendor[] = Object.entries(results).map(([name, data]) => ({
+      name,
+      category: (data.category || '').toLowerCase() as VendorCategory,
+      result: data.result || '',
+      method: data.method,
+      update: data.update
+    }));
+
+    // Apply category filter
+    if (vendorFilters.category !== 'all') {
+      vendors = vendors.filter(v => v.category === vendorFilters.category);
     }
-  }, [targetUrl]);
 
-  if (!targetUrl) {
-    return (
-      <div className="container mx-auto p-6">
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>No URL provided for analysis.</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+    // Apply search filter
+    if (vendorFilters.search) {
+      const searchLower = vendorFilters.search.toLowerCase();
+      vendors = vendors.filter(v => 
+        v.name.toLowerCase().includes(searchLower) ||
+        v.result.toLowerCase().includes(searchLower) ||
+        v.category.toLowerCase().includes(searchLower)
+      );
+    }
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto p-6 text-center">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-secondary rounded w-1/3 mx-auto"></div>
-          <div className="h-32 bg-secondary rounded"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 bg-secondary rounded"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+    // Apply sorting
+    return vendors.sort((a, b) => {
+      switch (vendorFilters.sortOrder) {
+        case 'threat':
+          return getThreatOrder(b.category) - getThreatOrder(a.category);
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'updated':
+          return (b.update || '').localeCompare(a.update || '');
+        default:
+          return 0;
+      }
+    });
+  };
 
-  if (!scanResult) {
-    return (
-      <div className="container mx-auto p-6">
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>Failed to load analysis results.</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  const getCategoryBadgeStyle = (category: string): string => {
+    switch (category.toLowerCase()) {
+      case 'malicious':
+        return 'bg-red-500 hover:bg-red-600 text-white';
+      case 'suspicious':
+        return 'bg-yellow-500 hover:bg-yellow-600 text-black';
+      case 'harmless':
+        return 'bg-green-500 hover:bg-green-600 text-white';
+      default:
+        return 'bg-gray-500 hover:bg-gray-600 text-white';
+    }
+  };
 
-  const getThreatLevel = (stats: ScanStats) => {
+  const getVendorCardStyle = (category: string): string => {
+    switch (category.toLowerCase()) {
+      case 'malicious':
+        return 'border-red-500/50 bg-red-50/10 shadow-[0_0_15px_rgba(239,68,68,0.1)]';
+      case 'suspicious':
+        return 'border-yellow-500/50 bg-yellow-50/10 shadow-[0_0_15px_rgba(234,179,8,0.1)]';
+      case 'harmless':
+        return 'border-green-500/50 bg-green-50/10';
+      default:
+        return 'border-gray-500/50 bg-gray-50/10';
+    }
+  };
+
+  const getThreatLevel = (stats: BaseScanStats | undefined): ThreatLevel => {
+    if (!stats) return "low";
     if (stats.malicious > 0) return "high";
     if (stats.suspicious > 0) return "medium";
     return "low";
   };
 
-  const getThreatScore = (stats: ScanStats) => {
+  const getThreatScore = (stats: BaseScanStats | undefined): number => {
+    if (!stats) return 0;
     const total = stats.malicious + stats.suspicious + stats.harmless + stats.undetected;
+    if (total === 0) return 0;  // Handle case when all stats are 0
     const threatScore = ((stats.malicious * 1.0 + stats.suspicious * 0.5) / total) * 100;
     return Math.round(threatScore);
   };
 
-  const threatLevel = getThreatLevel(scanResult.stats);
+  const threatLevel = getThreatLevel(scanResult?.data?.stats);
+  const threatScore = getThreatScore(scanResult?.data?.stats);
 
-  // Animation variants for elements
+  // Animation variants
   const fadeIn = {
     hidden: { opacity: 0 },
     visible: { opacity: 1 }
@@ -200,33 +206,37 @@ export default function URLScanResults() {
     }
   };
 
+  const defaultAnimation = {
+    initial: { scale: 1 },
+    animate: { scale: 1 }
+  };
+
   const chartData = {
-    labels: ['Malicious', 'Suspicious', 'Harmless', 'Undetected'],
+    labels: ['Malicious', 'Suspicious', 'Clean', 'Undetected'],
     datasets: [
       {
-        data: [
-          scanResult.stats.malicious,
-          scanResult.stats.suspicious,
-          scanResult.stats.harmless,
-          scanResult.stats.undetected
-        ],
+        label: 'Scan Results',
+        data: scanResult?.data?.stats ? [
+          scanResult.data.stats.malicious,
+          scanResult.data.stats.suspicious,
+          scanResult.data.stats.harmless,
+          scanResult.data.stats.undetected
+        ] : [0, 0, 0, 0],
         backgroundColor: [
-          'rgba(239, 68, 68, 0.5)',  // red
-          'rgba(245, 158, 11, 0.5)', // yellow
-          'rgba(16, 185, 129, 0.5)', // green
-          'rgba(107, 114, 128, 0.5)' // gray
+          'rgba(239, 68, 68, 0.5)',  // red for malicious
+          'rgba(234, 179, 8, 0.5)',   // yellow for suspicious
+          'rgba(34, 197, 94, 0.5)',   // green for clean
+          'rgba(148, 163, 184, 0.5)'  // slate for undetected
         ],
         borderColor: [
-          'rgb(239, 68, 68)',  // red
-          'rgb(245, 158, 11)', // yellow
-          'rgb(16, 185, 129)', // green
-          'rgb(107, 114, 128)' // gray
+          'rgb(239, 68, 68)',
+          'rgb(234, 179, 8)',
+          'rgb(34, 197, 94)',
+          'rgb(148, 163, 184)'
         ],
         borderWidth: 1,
-        borderRadius: 4,
-        maxBarThickness: 40,
-      }
-    ]
+      },
+    ],
   };
 
   const chartOptions = {
@@ -264,11 +274,76 @@ export default function URLScanResults() {
     responsive: true,
   };
 
+  // Helper function to process vendor results
+  const processVendorResults = (lastAnalysisResults: Record<string, { category: string; result: string; method: string; engine_name: string; }>) => {
+    return Object.entries(lastAnalysisResults)
+      .filter(([_, result]) => result.result && result.result !== 'clean' && result.result !== 'unrated')
+      .map(([vendor, result]) => ({
+        vendor: result.engine_name || vendor,
+        result: result.result,
+        method: result.method,
+        category: result.category
+      }))
+      .sort((a, b) => {
+        // Sort by category severity first
+        const severityOrder = { malicious: 0, suspicious: 1, phishing: 2, spam: 3, advertisements: 4 };
+        const aOrder = severityOrder[a.category.toLowerCase() as keyof typeof severityOrder] ?? 999;
+        const bOrder = severityOrder[b.category.toLowerCase() as keyof typeof severityOrder] ?? 999;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        
+        // Then sort alphabetically by vendor name
+        return a.vendor.localeCompare(b.vendor);
+      });
+  };
+
+  // Early return for no scan ID
+  if (!scanId) {
+    return (
+      <div className="container mx-auto p-6">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>No scan ID provided for analysis.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6 text-center">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-secondary rounded w-1/3 mx-auto"></div>
+          <div className="h-32 bg-secondary rounded"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-24 bg-secondary rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !scanResult) {
+    return (
+      <div className="container mx-auto p-6">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error || 'Failed to load analysis results.'}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen">
       <div className="container mx-auto p-6 space-y-6 max-w-7xl">
         {/* Threat Alert Section */}
-        <AnimatePresence>
+        <AnimatePresence mode="sync">
           {threatLevel === "high" && (
             <motion.div
               initial="hidden"
@@ -308,7 +383,7 @@ export default function URLScanResults() {
             >
               <div className="relative w-24 h-24">
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-3xl font-bold">{getThreatScore(scanResult.stats)}%</div>
+                  <div className="text-3xl font-bold">{threatScore}%</div>
                 </div>
                 <svg className="transform -rotate-90 w-24 h-24">
                   <circle
@@ -321,23 +396,26 @@ export default function URLScanResults() {
                     cy="48"
                   />
                   <circle
+                    cx="48"
+                    cy="48"
+                    r="45"
                     className="text-red-500"
                     strokeWidth="6"
                     strokeDasharray={2 * Math.PI * 45}
-                    strokeDashoffset={2 * Math.PI * 45 * (1 - getThreatScore(scanResult.stats) / 100)}
+                    strokeDashoffset={`${2 * Math.PI * 45 * (1 - threatScore / 100)}`}
                     strokeLinecap="round"
                     stroke="currentColor"
                     fill="transparent"
-                    r="45"
-                    cx="48"
-                    cy="48"
                   />
                 </svg>
               </div>
               <div className="mt-2 text-sm text-muted-foreground">Threat Score</div>
             </motion.div>
             
-            <motion.div animate={threatLevel === "high" ? pulseAnimation : {}}>
+            <motion.div 
+              animate={threatLevel === "high" ? pulseAnimation.animate : defaultAnimation.animate}
+              initial={threatLevel === "high" ? pulseAnimation.initial : defaultAnimation.initial}
+            >
               <Badge 
                 variant={threatLevel === "high" ? "destructive" : threatLevel === "medium" ? "secondary" : "default"}
                 className="text-lg py-1 px-4"
@@ -348,7 +426,7 @@ export default function URLScanResults() {
           </div>
         </motion.div>
 
-        {/* URL Info Card with Radar Chart */}
+        {/* URL Info Card with Chart */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <motion.div
             className="md:col-span-2"
@@ -365,13 +443,13 @@ export default function URLScanResults() {
                   Analyzed URL
                 </CardTitle>
                 <CardDescription>
-                  Analyzed on {new Date(scanResult.scanDate).toLocaleString()}
+                  Currently analyzing {scanResult.data.domain}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-lg font-mono bg-secondary/10 p-4 rounded-lg border-2 border-border/50 shadow-inner">
                   <Link2 className="h-5 w-5" />
-                  {scanResult.url}
+                  {scanResult.data.url}
                 </div>
               </CardContent>
             </Card>
@@ -390,16 +468,6 @@ export default function URLScanResults() {
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-6 w-6" />
                   Threat Distribution
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Distribution of security engine verdicts</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -428,7 +496,7 @@ export default function URLScanResults() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-3xl font-bold">{scanResult.stats.malicious}</p>
+                      <p className="text-3xl font-bold">{scanResult.data.stats.malicious}</p>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
@@ -454,7 +522,7 @@ export default function URLScanResults() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-3xl font-bold">{scanResult.stats.suspicious}</p>
+                      <p className="text-3xl font-bold">{scanResult.data.stats.suspicious}</p>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
@@ -480,7 +548,7 @@ export default function URLScanResults() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-3xl font-bold">{scanResult.stats.harmless}</p>
+                      <p className="text-3xl font-bold">{scanResult.data.stats.harmless}</p>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
@@ -506,7 +574,7 @@ export default function URLScanResults() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-3xl font-bold">{scanResult.stats.undetected}</p>
+                      <p className="text-3xl font-bold">{scanResult.data.stats.undetected}</p>
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
@@ -518,7 +586,7 @@ export default function URLScanResults() {
           </TooltipProvider>
         </div>
 
-        {/* Detailed Analysis Tabs */}
+        {/* Analysis Results Section */}
         <motion.div initial="hidden" animate="visible" variants={fadeIn} className="w-full">
           <Tabs defaultValue="engines" className="w-full">
             <TabsList className="flex w-full gap-2 !bg-transparent !p-0">
@@ -560,7 +628,7 @@ export default function URLScanResults() {
               </TabsTrigger>
             </TabsList>
             
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="sync">
               <motion.div
                 key="engines"
                 initial={{ opacity: 0, y: 10 }}
@@ -569,48 +637,143 @@ export default function URLScanResults() {
                 transition={{ duration: 0.2 }}
               >
                 <TabsContent value="engines">
-                  <Card className="border-2 border-border/50 bg-background/10 mt-6 rounded-2xl">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Shield className="h-5 w-5" />
-                        Security Engine Results
-                      </CardTitle>
-                      <CardDescription>Analysis from multiple security engines</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {scanResult.lastAnalysisResults.map((result: EngineResult, index: number) => (
-                          <div 
-                            key={index} 
-                            className={cn(
-                              "flex items-center justify-between p-4 rounded-lg border-2 transition-all duration-300",
-                              result.category === "malicious" 
-                                ? "bg-red-500/5 border-red-500/30 hover:border-red-500/50" 
-                                : result.category === "suspicious"
-                                ? "bg-yellow-500/5 border-yellow-500/30 hover:border-yellow-500/50"
-                                : result.category === "harmless"
-                                ? "bg-green-500/5 border-green-500/30 hover:border-green-500/50"
-                                : "bg-gray-500/5 border-gray-500/30 hover:border-gray-500/50"
-                            )}
-                          >
-                            <div className="font-medium">{result.engine}</div>
-                            <Badge 
-                              variant={result.category === "malicious" ? "destructive" : "default"}
-                              className={cn(
-                                "font-semibold",
-                                result.category === "malicious" && "bg-red-500/20 text-red-500 hover:bg-red-500/30",
-                                result.category === "suspicious" && "bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30",
-                                result.category === "harmless" && "bg-green-500/20 text-green-500 hover:bg-green-500/30",
-                                result.category === "undetected" && "bg-gray-500/20 text-gray-500 hover:bg-gray-500/30"
-                              )}
-                            >
-                              {result.category}
-                            </Badge>
+                  <motion.div
+                    key="engines"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Card className="border-2 border-border/50 bg-background/10 mt-6 rounded-2xl">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Shield className="h-5 w-5" />
+                          Security Engines
+                        </CardTitle>
+                        <CardDescription>Analysis results from various security vendors</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-6">
+                          {/* Vendor Results Section */}
+                          <div className="space-y-4">
+                            <Card className="col-span-full">
+                              <CardHeader>
+                                <CardTitle className="flex items-center justify-between">
+                                  <div className="flex gap-4 items-center">
+                                    <div className="flex items-center gap-2">
+                                      <select
+                                        className="px-3 py-2 rounded-md border bg-background text-sm"
+                                        value={vendorFilters.category}
+                                        onChange={(e) => setVendorFilters(prev => ({ ...prev, category: e.target.value as any }))}
+                                      >
+                                        <option value="all">All Categories</option>
+                                        <option value="malicious">Malicious</option>
+                                        <option value="suspicious">Suspicious</option>
+                                        <option value="harmless">Harmless</option>
+                                        <option value="undetected">Undetected</option>
+                                      </select>
+                                      
+                                      <select
+                                        className="px-3 py-2 rounded-md border bg-background text-sm"
+                                        value={vendorFilters.sortOrder}
+                                        onChange={(e) => setVendorFilters(prev => ({ ...prev, sortOrder: e.target.value as SortOrder }))}
+                                      >
+                                        <option value="threat">Sort by Risk Level</option>
+                                        <option value="name">Sort by Name</option>
+                                        <option value="updated">Sort by Last Updated</option>
+                                      </select>
+
+                                      <input
+                                        type="text"
+                                        placeholder="Search vendors..."
+                                        className="px-3 py-2 rounded-md border bg-background text-sm"
+                                        value={vendorFilters.search}
+                                        onChange={(e) => setVendorFilters(prev => ({ ...prev, search: e.target.value }))}
+                                      />
+                                    </div>
+                                  </div>
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  <AnimatePresence mode="popLayout">
+                                    {getFilteredVendors(scanResult.data.lastAnalysisResults).map((vendor) => (
+                                      <motion.div
+                                        key={vendor.name}
+                                        layout
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.9 }}
+                                        transition={{ duration: 0.2 }}
+                                        className={cn(
+                                          "p-4 rounded-lg border hover:shadow-lg transition-shadow",
+                                          getVendorCardStyle(vendor.category)
+                                        )}
+                                      >
+                                        <div className="flex justify-between items-start mb-2">
+                                          <div>
+                                            <h3 className="font-semibold">{vendor.name}</h3>
+                                            <p className="text-sm text-muted-foreground">{vendor.result}</p>
+                                          </div>
+                                          <Badge className={getCategoryBadgeStyle(vendor.category)}>
+                                            {vendor.category}
+                                          </Badge>
+                                        </div>
+                                        {vendor.method && (
+                                          <p className="text-xs text-muted-foreground mt-2">
+                                            Method: {vendor.method}
+                                          </p>
+                                        )}
+                                        {vendor.update && (
+                                          <p className="text-xs text-muted-foreground">
+                                            Updated: {new Date(vendor.update).toLocaleString()}
+                                          </p>
+                                        )}
+                                      </motion.div>
+                                    ))}
+                                  </AnimatePresence>
+                                </div>
+                              </CardContent>
+                            </Card>
                           </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+
+                          {/* Summary Stats */}
+                          {scanResult.data.stats && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 p-4 rounded-lg border-2 border-border/50 bg-primary/5">
+                              <div className="text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <div className="w-3 h-3 rounded-full bg-red-500" />
+                                  <p className="text-sm font-medium">Malicious</p>
+                                </div>
+                                <p className="text-2xl font-bold mt-1">{scanResult.data.stats.malicious}</p>
+                              </div>
+                              <div className="text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                                  <p className="text-sm font-medium">Suspicious</p>
+                                </div>
+                                <p className="text-2xl font-bold mt-1">{scanResult.data.stats.suspicious}</p>
+                              </div>
+                              <div className="text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                                  <p className="text-sm font-medium">Harmless</p>
+                                </div>
+                                <p className="text-2xl font-bold mt-1">{scanResult.data.stats.harmless}</p>
+                              </div>
+                              <div className="text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <div className="w-3 h-3 rounded-full bg-gray-500" />
+                                  <p className="text-sm font-medium">Undetected</p>
+                                </div>
+                                <p className="text-2xl font-bold mt-1">{scanResult.data.stats.undetected}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
                 </TabsContent>
               </motion.div>
 
@@ -631,14 +794,41 @@ export default function URLScanResults() {
                       <CardDescription>Identified threat categories for this URL</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid gap-4">
-                        {scanResult.categories.map((category, index) => (
-                          <div
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {scanResult.data.lastAnalysisResults && processVendorResults(scanResult.data.lastAnalysisResults).map((item, index) => (
+                          <motion.div
                             key={index}
-                            className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 hover:border-primary/50 transition-all duration-300"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.2, delay: index * 0.1 }}
+                            className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 hover:border-primary/50 hover:bg-primary/10 transition-all duration-300 group"
                           >
-                            <h3 className="font-semibold text-primary">{category}</h3>
-                          </div>
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="space-y-1">
+                                  <h3 className="font-medium text-primary">{item.vendor}</h3>
+                                  <Badge 
+                                    variant={
+                                      item.category.toLowerCase() === 'malicious' ? 'destructive' :
+                                      item.category.toLowerCase() === 'suspicious' ? 'default' :
+                                      'secondary'
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {item.category}
+                                  </Badge>
+                                </div>
+                                {item.method && (
+                                  <Badge variant="outline" className="bg-background/50">
+                                    {item.method}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                <span className="font-medium">Result:</span> {item.result}
+                              </div>
+                            </div>
+                          </motion.div>
                         ))}
                       </div>
                     </CardContent>
@@ -663,23 +853,151 @@ export default function URLScanResults() {
                       <CardDescription>Additional technical information about the URL</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-4">
-                        <div className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 hover:border-primary/50 transition-all duration-300">
-                          <div className="font-medium text-muted-foreground mb-1">Last Analysis Date</div>
-                          <div className="font-mono">{new Date(scanResult.scanDate).toLocaleString()}</div>
+                      <div className="space-y-8">
+                        {/* History Section */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <Clock className="h-4 w-4" />
+                            History
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {scanResult.data.firstSubmissionDate && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                              >
+                                <p className="text-sm font-medium text-muted-foreground mb-1">First Submission</p>
+                                <p className="font-mono text-sm">{new Date(scanResult.data.firstSubmissionDate).toLocaleString()}</p>
+                              </motion.div>
+                            )}
+                            {scanResult.data.lastSubmissionDate && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2, delay: 0.1 }}
+                                className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                              >
+                                <p className="text-sm font-medium text-muted-foreground mb-1">Last Submission</p>
+                                <p className="font-mono text-sm">{new Date(scanResult.data.lastSubmissionDate).toLocaleString()}</p>
+                              </motion.div>
+                            )}
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.2, delay: 0.2 }}
+                              className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                            >
+                              <p className="text-sm font-medium text-muted-foreground mb-1">Last Analysis</p>
+                              <p className="font-mono text-sm">{new Date(scanResult.data.scanDate).toLocaleString()}</p>
+                            </motion.div>
+                          </div>
                         </div>
-                        <div className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 hover:border-primary/50 transition-all duration-300">
-                          <div className="font-medium text-muted-foreground mb-1">Total Engines</div>
-                          <div className="font-mono">{scanResult.lastAnalysisResults.length}</div>
-                        </div>
-                        <div className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 hover:border-primary/50 transition-all duration-300">
-                          <div className="font-medium text-muted-foreground mb-1">Analysis Status</div>
-                          <div className="font-mono">{scanResult.stats.malicious > 0 ? "Malicious" : "Clean"}</div>
-                        </div>
-                        {scanResult.lastHttpResponse && (
-                          <div className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 hover:border-primary/50 transition-all duration-300">
-                            <div className="font-medium text-muted-foreground mb-1">HTTP Response</div>
-                            <div className="font-mono">{scanResult.lastHttpResponse}</div>
+
+                        {/* HTTP Response Section */}
+                        {scanResult.data.httpResponse && Object.keys(scanResult.data.httpResponse).length > 0 && (
+                          <div className="space-y-4">
+                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                              <Globe className="h-4 w-4" />
+                              HTTP Response
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 col-span-2"
+                              >
+                                <p className="text-sm font-medium text-muted-foreground mb-1">Final URL</p>
+                                <p className="font-mono text-sm break-all">{scanResult.data.httpResponse.finalUrl || scanResult.data.url}</p>
+                              </motion.div>
+                              {scanResult.data.httpResponse.ipAddress !== undefined && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                                >
+                                  <p className="text-sm font-medium text-muted-foreground mb-1">Serving IP Address</p>
+                                  <p className="font-mono text-sm">{scanResult.data.httpResponse.ipAddress}</p>
+                                </motion.div>
+                              )}
+                              {scanResult.data.httpResponse.statusCode !== undefined && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                                >
+                                  <p className="text-sm font-medium text-muted-foreground mb-1">Status Code</p>
+                                  <p className="font-mono text-sm">{scanResult.data.httpResponse.statusCode}</p>
+                                </motion.div>
+                              )}
+                              {scanResult.data.httpResponse.bodyLength !== undefined && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                                >
+                                  <p className="text-sm font-medium text-muted-foreground mb-1">Body Length</p>
+                                  <p className="font-mono text-sm">{(scanResult.data.httpResponse.bodyLength / 1024).toFixed(2)} KB</p>
+                                </motion.div>
+                              )}
+                              {scanResult.data.httpResponse.bodySha256 !== undefined && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                                >
+                                  <p className="text-sm font-medium text-muted-foreground mb-1">Body SHA-256</p>
+                                  <p className="font-mono text-sm break-all">{scanResult.data.httpResponse.bodySha256}</p>
+                                </motion.div>
+                              )}
+                            </div>
+
+                            {/* Headers Section */}
+                            {scanResult.data.httpResponse.headers && Object.keys(scanResult.data.httpResponse.headers).length > 0 && (
+                              <div className="mt-6">
+                                <h4 className="text-md font-semibold mb-3">Headers</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {Object.entries(scanResult.data.httpResponse.headers).map(([key, value], index) => (
+                                    <motion.div
+                                      key={key}
+                                      initial={{ opacity: 0, y: 10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                                      className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                                    >
+                                      <p className="text-sm font-medium text-muted-foreground mb-1">{key}</p>
+                                      <p className="font-mono text-sm break-all">{value}</p>
+                                    </motion.div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Redirection Chain Section */}
+                            {scanResult.data.httpResponse.redirectionChain && scanResult.data.httpResponse.redirectionChain.length > 0 && (
+                              <div className="mt-6">
+                                <h4 className="text-md font-semibold mb-3">Redirection Chain</h4>
+                                <div className="space-y-2">
+                                  {scanResult.data.httpResponse.redirectionChain.map((url, index) => (
+                                    <motion.div
+                                      key={index}
+                                      initial={{ opacity: 0, y: 10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                                      className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                                    >
+                                      <p className="font-mono text-sm break-all">{url}</p>
+                                    </motion.div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -702,21 +1020,95 @@ export default function URLScanResults() {
                         <Users className="h-5 w-5" />
                         Community Feedback
                       </CardTitle>
-                      <CardDescription>Community votes and reports for this URL</CardDescription>
+                      <CardDescription>Community reports and risk assessment</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-6">
-                        {/* Community Stats */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 hover:border-primary/50 transition-all duration-300">
-                            <p className="text-sm text-muted-foreground">Total Reports</p>
-                            <p className="text-2xl font-bold">{scanResult.communityFeedback.totalReports}</p>
+                        {scanResult.data.communityFeedback ? (
+                          <>
+                            {/* Risk Score */}
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h3 className="text-lg font-semibold">Risk Score</h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    Based on {scanResult.data.communityFeedback.totalReports || 0} community reports
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className={`text-2xl font-bold ${
+                                    scanResult.data.communityFeedback.riskScore >= 7 ? 'text-red-500' :
+                                    scanResult.data.communityFeedback.riskScore >= 4 ? 'text-yellow-500' :
+                                    'text-green-500'
+                                  }`}>
+                                    {scanResult.data.communityFeedback.riskScore || 0}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">/10</div>
+                                </div>
+                              </div>
+                            </motion.div>
+
+                            {/* Community Reports */}
+                            {scanResult.data.communityFeedback.reports && scanResult.data.communityFeedback.reports.length > 0 ? (
+                              <div className="space-y-4">
+                                <h3 className="text-lg font-semibold">Recent Reports</h3>
+                                <div className="space-y-4">
+                                  {scanResult.data.communityFeedback.reports.map((report, index) => (
+                                    <motion.div
+                                      key={index}
+                                      initial={{ opacity: 0, y: 10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      transition={{ duration: 0.2, delay: index * 0.1 }}
+                                      className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 hover:border-primary/50 hover:bg-primary/10 transition-all duration-300"
+                                    >
+                                      <div className="flex items-start gap-4">
+                                        <div className="w-10 h-10 rounded-full overflow-hidden bg-primary/10">
+                                          <img
+                                            src={report.avatar}
+                                            alt={report.user}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              const target = e.target as HTMLImageElement;
+                                              target.src = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
+                                            }}
+                                          />
+                                        </div>
+                                        <div className="flex-1">
+                                          <div className="flex items-center justify-between">
+                                            <p className="font-semibold">{report.user}</p>
+                                            <div className="flex items-center gap-2">
+                                              <p className="text-sm text-muted-foreground">{new Date(report.date).toLocaleDateString()}</p>
+                                              <div className="flex items-center gap-1">
+                                                <ThumbsUp className="h-4 w-4" />
+                                                <span className="text-sm">{report.votes}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <p className="mt-2 text-sm">{report.comment}</p>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center p-8 text-muted-foreground">
+                                <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                <p>No community reports available yet</p>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-center p-8 text-muted-foreground">
+                            <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                            <p>Community feedback is not available for this URL</p>
                           </div>
-                          <div className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 hover:border-primary/50 transition-all duration-300">
-                            <p className="text-sm text-muted-foreground">Community Score</p>
-                            <p className="text-2xl font-bold">{scanResult.communityFeedback.riskScore}%</p>
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

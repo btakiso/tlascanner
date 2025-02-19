@@ -10,6 +10,7 @@ import { Shield, FileWarning, FileKey, FileSearch } from "lucide-react"
 import { AnimatedSpan, Terminal, TypingAnimation } from "@/components/ui/terminal"
 import { WaveContainer } from "../ui/wave-container"
 import { useRouter } from "next/navigation"
+import { config } from "@/app/config"
 
 export function URLScanner() {
   const router = useRouter()
@@ -17,55 +18,113 @@ export function URLScanner() {
   const terminalRef = useRef(null)
   const isInView = useInView(ref, { once: false, margin: "-100px" })
   const [url, setUrl] = useState("https://example.com")
-  const [isScanning, setIsScanning] = useState(false)
-  const [demoStep, setDemoStep] = React.useState(0)
+  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'error'>('idle')
+  const [scanProgress, setScanProgress] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [scanSteps, setScanSteps] = useState({
+    dns: false,
+    init: false,
+    ssl: false,
+    content: false,
+    malware: false,
+    report: false,
+    complete: false
+  })
 
-  // Auto-play demo animation when component is in view
+  // Reset scan steps when URL changes
   useEffect(() => {
-    if (!isInView || demoStep === 10) return
+    setScanSteps({
+      dns: false,
+      init: false,
+      ssl: false,
+      content: false,
+      malware: false,
+      report: false,
+      complete: false
+    });
+    setScanState('idle');
+    setError(null);
+  }, [url]);
 
-    const startDemo = () => {
-      setIsScanning(true)
-      setDemoStep(0)
-
-      const steps = [
-        { step: 1, delay: 1000 },   // Show scanning URL
-        { step: 2, delay: 2000 },   // Show DNS check
-        { step: 3, delay: 3000 },   // Show init process
-        { step: 4, delay: 4000 },   // Show SSL verify
-        { step: 5, delay: 5000 },   // Show content analysis
-        { step: 6, delay: 6000 },   // Show malware check
-        { step: 7, delay: 7000 },   // Show generating report
-        { step: 8, delay: 8000 },   // Show URL is safe
-        { step: 9, delay: 9000 },   // Show final details
-        { step: 10, delay: 10000 }, // Show completion message
-      ]
-
-      steps.forEach(({ step, delay }) => {
-        setTimeout(() => {
-          setDemoStep(step)
-        }, delay)
-      })
-    }
-
-    startDemo()
-    return () => {
-      setIsScanning(false)
-      setDemoStep(0)
-    }
-  }, [isInView])
+  const runScanStep = async (step: keyof typeof scanSteps, delay: number) => {
+    await new Promise(resolve => setTimeout(resolve, delay));
+    setScanSteps(prev => ({ ...prev, [step]: true }));
+  };
 
   const handleScan = async () => {
-    setDemoStep(0)
-    setIsScanning(true)
+    setScanState('scanning');
+    setError(null);
+    setScanProgress(0);
     
-    // Simulate a quick scan process
-    setTimeout(() => {
-      setIsScanning(false)
-      // Redirect to scan results page
-      router.push(`/scan-results/url?target=${encodeURIComponent(url)}`)
-    }, 1500)
-  }
+    // Reset scan steps
+    setScanSteps({
+      dns: false,
+      init: false,
+      ssl: false,
+      content: false,
+      malware: false,
+      report: false,
+      complete: false
+    });
+
+    try {
+      // Start the visual scanning process
+      const steps: [keyof typeof scanSteps, number][] = [
+        ['dns', 500],
+        ['init', 800],
+        ['ssl', 1000],
+        ['content', 1200],
+        ['malware', 1500],
+        ['report', 1800],
+      ];
+
+      // Run each step with its delay
+      for (const [step, delay] of steps) {
+        await runScanStep(step, delay);
+        setScanProgress(prev => Math.min(prev + 100 / steps.length, 100));
+      }
+
+      const apiUrl = `${config.API_URL}${config.SCAN_ENDPOINTS.URL}`;
+      console.log('Making API request to:', apiUrl);
+      console.log('Request body:', { url });
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      console.log('Response status:', response.status);
+      const responseData = await response.json();
+      console.log('Response data:', responseData);
+
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Failed to scan URL');
+      }
+
+      // Mark scan as complete
+      setScanSteps(prev => ({ ...prev, complete: true }));
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Redirect to scan results page with the scan ID
+      router.push(`/scan-results/url?target=${encodeURIComponent(url)}&scanId=${responseData.data.scanId}`);
+    } catch (error) {
+      console.error('Error scanning URL:', error);
+      setError(error instanceof Error ? error.message : 'Failed to scan URL');
+      setScanState('error');
+    }
+  };
+
+  const renderScanStep = (step: keyof typeof scanSteps, label: string) => {
+    const isActive = scanSteps[step];
+    return (
+      <AnimatedSpan delay={0} className={isActive ? "text-green-500" : "text-muted-foreground"}>
+        <span>{isActive ? "✓" : "○"} {label}</span>
+      </AnimatedSpan>
+    );
+  };
 
   return (
     <motion.div 
@@ -234,39 +293,54 @@ export function URLScanner() {
                 </BoxReveal>
 
                 <div className="mt-8">
-                  <div className="flex space-x-2 bg-background p-1.5 rounded-2xl border">
-                    <Input
-                      type="url"
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      placeholder="Enter URL to scan..."
-                      className="flex-1 h-12 px-4 bg-transparent border-0 ring-2 ring-border/50 focus-visible:ring-2 focus-visible:ring-[#0EA5E9] rounded-xl transition-shadow duration-200"
-                    />
-                    <Button
-                      onClick={handleScan}
-                      className={`h-12 px-6 bg-gradient-to-r from-[#0EA5E9] to-[#6366F1] text-white rounded-xl 
-                        hover:translate-y-[-1px] hover:shadow-md 
-                        active:translate-y-[1px] active:shadow-sm 
-                        transition-all duration-200`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <svg
-                          className="w-4 h-4 transition-transform duration-200"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                          />
-                        </svg>
-                        <span className="font-medium">Scan URL</span>
+                  <div className="flex flex-col space-y-2">
+                    <div className="flex space-x-2 bg-background p-1.5 rounded-2xl border">
+                      <Input
+                        type="url"
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        placeholder="Enter URL to scan..."
+                        className="flex-1 h-12 px-4 bg-transparent border-0 ring-2 ring-border/50 focus-visible:ring-2 focus-visible:ring-[#0EA5E9] rounded-xl transition-shadow duration-200"
+                      />
+                      <Button
+                        onClick={handleScan}
+                        disabled={scanState === 'scanning'}
+                        className={`h-12 px-6 bg-gradient-to-r from-[#0EA5E9] to-[#6366F1] text-white rounded-xl 
+                          hover:translate-y-[-1px] hover:shadow-md 
+                          active:translate-y-[1px] active:shadow-sm 
+                          transition-all duration-200
+                          disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {scanState === 'scanning' ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                          ) : (
+                            <svg
+                              className="w-4 h-4 transition-transform duration-200"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                              />
+                            </svg>
+                          )}
+                          <span className="font-medium">
+                            {scanState === 'scanning' ? 'Scanning...' : 'Scan URL'}
+                          </span>
+                        </div>
+                      </Button>
+                    </div>
+                    {error && (
+                      <div className="text-red-500 text-sm px-2">
+                        {error}
                       </div>
-                    </Button>
+                    )}
                   </div>
                 </div>
 
@@ -280,72 +354,43 @@ export function URLScanner() {
                 >
                   <Terminal className="font-mono text-sm p-4 h-full flex flex-col">
                     <div className="flex-1 overflow-y-auto space-y-2">
-                      <TypingAnimation>
-                        {`> Scanning URL: ${url}`}
-                      </TypingAnimation>
-
-                      {demoStep >= 2 && (
-                        <AnimatedSpan delay={200} className="text-green-500">
-                          <span>✓ Checking DNS records...</span>
-                        </AnimatedSpan>
-                      )}
-
-                      {demoStep >= 3 && (
-                        <AnimatedSpan delay={400} className="text-green-500">
-                          <span>✓ Initializing scan process...</span>
-                        </AnimatedSpan>
-                      )}
-
-                      {demoStep >= 4 && (
-                        <AnimatedSpan delay={600} className="text-green-500">
-                          <span>✓ Verifying SSL certificate...</span>
-                        </AnimatedSpan>
-                      )}
-
-                      {demoStep >= 5 && (
-                        <AnimatedSpan delay={800} className="text-green-500">
-                          <span>✓ Analyzing content safety...</span>
-                        </AnimatedSpan>
-                      )}
-
-                      {demoStep >= 6 && (
-                        <AnimatedSpan delay={1000} className="text-green-500">
-                          <span>✓ Checking malware database...</span>
-                        </AnimatedSpan>
-                      )}
-
-                      {demoStep >= 7 && (
-                        <AnimatedSpan delay={1200} className="text-blue-500">
-                          <span>ℹ Generating security report...</span>
-                        </AnimatedSpan>
-                      )}
-
-                      {demoStep >= 8 && (
-                        <AnimatedSpan delay={1400} className="text-green-500">
-                          <span>✓ URL IS SAFE</span>
-                        </AnimatedSpan>
-                      )}
-
-                      {demoStep >= 9 && (
+                      {scanState === 'scanning' && (
                         <>
-                          <AnimatedSpan delay={1600} className="text-muted-foreground">
-                            <span>No malware detected</span>
-                          </AnimatedSpan>
-                          <AnimatedSpan delay={1800} className="text-muted-foreground">
-                            <span>SSL certificate valid</span>
-                          </AnimatedSpan>
-                          <AnimatedSpan delay={2000} className="text-muted-foreground">
-                            <span>Content verified</span>
-                          </AnimatedSpan>
-                        </>
-                      )}
-
-                      {demoStep >= 10 && (
-                        <>
-                          <div className="h-4"></div>
-                          <TypingAnimation delay={2200} className="text-muted-foreground">
-                            {`Scan completed successfully. You may scan another URL.`}
+                          <TypingAnimation>
+                            {`> Scanning URL: ${url}`}
                           </TypingAnimation>
+
+                          <div className="space-y-2 mt-2">
+                            {renderScanStep('dns', 'Checking DNS records...')}
+                            {renderScanStep('init', 'Initializing scan process...')}
+                            {renderScanStep('ssl', 'Verifying SSL certificate...')}
+                            {renderScanStep('content', 'Analyzing content safety...')}
+                            {renderScanStep('malware', 'Checking malware database...')}
+                            {renderScanStep('report', 'Generating security report...')}
+                            
+                            {scanSteps.complete && (
+                              <>
+                                <AnimatedSpan delay={200} className="text-green-500">
+                                  <span>✓ URL IS SAFE</span>
+                                </AnimatedSpan>
+                                <AnimatedSpan delay={400} className="text-muted-foreground">
+                                  <span>No malware detected</span>
+                                </AnimatedSpan>
+                                <AnimatedSpan delay={600} className="text-muted-foreground">
+                                  <span>SSL certificate valid</span>
+                                </AnimatedSpan>
+                                <AnimatedSpan delay={800} className="text-muted-foreground">
+                                  <span>Content verified</span>
+                                </AnimatedSpan>
+                              </>
+                            )}
+
+                            {error && (
+                              <AnimatedSpan delay={200} className="text-red-500">
+                                <span>✗ Error: {error}</span>
+                              </AnimatedSpan>
+                            )}
+                          </div>
                         </>
                       )}
                     </div>
