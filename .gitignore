@@ -12,10 +12,13 @@ node_modules
 
 # production
 /build
+/dist
+/backend/dist
 
 # misc
 .DS_Store
 *.pem
+*.log
 
 # debug
 npm-debug.log*
@@ -23,7 +26,11 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
+.env.development
+.env.test
+.env.production
 
 # vercel
 .vercel
@@ -35,3 +42,31 @@ next-env.d.ts
 # IDE
 .vscode/
 .idea/
+*.sublime-*
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+*.tmp
+
+# Backend specific
+/backend/node_modules/
+/backend/dist/
+/backend/coverage/
+/backend/logs/
+/backend/.env
+/backend/.env.*
+/backend/package-lock.json
+/backend/*.log
+/backend/.DS_Store
+
+# Temp files
+*.tmp
+*.temp
+.cache/
+
+# Build files
+*.js.map
+*.d.ts
