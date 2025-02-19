@@ -15,35 +15,26 @@ foreach ($line in $envContent) {
     }
 }
 
-# Parse DATABASE_URL
-$dbUrl = $env:DATABASE_URL
-if (-not $dbUrl) {
-    Write-Error "DATABASE_URL not found in .env file"
-    exit 1
-}
+# Use PostgreSQL environment variables directly
+$env:PGUSER = $env:PGUSER
+$env:PGPASSWORD = $env:PGPASSWORD
+$env:PGHOST = $env:PGHOST
+$env:PGPORT = $env:PGPORT
+$dbName = $env:PGDATABASE
 
-# Extract database connection details
-if ($dbUrl -match 'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)') {
-    $dbUser = $matches[1]
-    $dbPassword = $matches[2]
-    $dbHost = $matches[3]
-    $dbPort = $matches[4]
-    $dbName = $matches[5]
-} else {
-    Write-Error "Invalid DATABASE_URL format"
-    exit 1
-}
-
-# Set PGPASSWORD environment variable
-$env:PGPASSWORD = $dbPassword
+Write-Host "Connecting with:"
+Write-Host "User: $env:PGUSER"
+Write-Host "Host: $env:PGHOST"
+Write-Host "Port: $env:PGPORT"
+Write-Host "Database: $dbName"
 
 # First, try to create the database if it doesn't exist
 Write-Host "Creating database if it doesn't exist..."
-psql -h $dbHost -p $dbPort -U $dbUser -d postgres -c "CREATE DATABASE $dbName WITH ENCODING 'UTF8' LC_COLLATE='en_US.utf8' LC_CTYPE='en_US.utf8';" 2>$null
+psql -d postgres -c "CREATE DATABASE $dbName WITH ENCODING 'UTF8' LC_COLLATE='en_US.utf8' LC_CTYPE='en_US.utf8';" 2>$null
 
 # Now initialize schema
 Write-Host "Initializing database schema..."
-psql -h $dbHost -p $dbPort -U $dbUser -d $dbName -f "src/config/init.sql"
+psql -d $dbName -f "src/config/init.sql"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Database setup completed successfully"
@@ -52,5 +43,5 @@ if ($LASTEXITCODE -eq 0) {
     exit 1
 }
 
-# Clear PGPASSWORD
+# Clear PostgreSQL environment variables
 $env:PGPASSWORD = ""
