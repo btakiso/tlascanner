@@ -15,12 +15,12 @@ export function UserAvatar({ user, className }: UserAvatarProps) {
     <Avatar className={className}>
       <AvatarImage src={user.image} alt={user.name} />
       <AvatarFallback className="bg-secondary">
-        {user.name
+        {user.name ? user.name
           .split(" ")
           .map((n) => n[0])
           .slice(0, 2)
           .join("")
-          .toUpperCase()}
+          .toUpperCase() : "U"}
       </AvatarFallback>
     </Avatar>
   )

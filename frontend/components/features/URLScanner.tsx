@@ -11,6 +11,8 @@ import { AnimatedSpan, Terminal, TypingAnimation } from "@/components/ui/termina
 import { WaveContainer } from "../ui/wave-container"
 import { useRouter } from "next/navigation"
 import { config } from "@/app/config"
+import { Progress } from "@/components/ui/progress"
+import { cn } from "@/lib/utils"
 
 export function URLScanner() {
   const router = useRouter()
@@ -18,9 +20,12 @@ export function URLScanner() {
   const terminalRef = useRef(null)
   const isInView = useInView(ref, { once: false, margin: "-100px" })
   const [url, setUrl] = useState("https://example.com")
-  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'error'>('idle')
+  const [displayUrl, setDisplayUrl] = useState("https://example.com")
+  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'complete' | 'error'>('idle')
   const [scanProgress, setScanProgress] = useState(0)
+  const [displayProgress, setDisplayProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const [scanSteps, setScanSteps] = useState({
     dns: false,
     init: false,
@@ -31,20 +36,62 @@ export function URLScanner() {
     complete: false
   })
 
-  // Reset scan steps when URL changes
+  // Function to validate and format URL
+  const formatUrl = (inputUrl: string): string => {
+    // Remove leading/trailing whitespace
+    let formattedUrl = inputUrl.trim();
+    
+    // Remove any existing protocol
+    formattedUrl = formattedUrl.replace(/^(https?:\/\/)/, '');
+    
+    // Remove trailing slashes and spaces
+    formattedUrl = formattedUrl.replace(/[\s\/]+$/, '');
+    
+    // Basic domain format validation
+    if (!formattedUrl.match(/^[a-zA-Z0-9][a-zA-Z0-9-_.]+\.[a-zA-Z]{2,}/) && !formattedUrl.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/)) {
+      throw new Error('Please enter a valid domain name (e.g., example.com)');
+    }
+
+    // Check length before protocol
+    if (formattedUrl.length > 2048 - 8) { // 8 for https://
+      throw new Error('URL is too long (maximum 2048 characters)');
+    }
+    
+    // Add https:// protocol
+    formattedUrl = `https://${formattedUrl}`;
+    
+    return formattedUrl;
+  };
+
+  // Handle URL input change with validation feedback
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputUrl = e.target.value;
+    setUrl(inputUrl);
+    
+    // Clear any previous errors when user types
+    if (error) {
+      setError(null);
+    }
+
+    // Reset scan state when URL changes
+    if (scanState !== 'idle') {
+      setScanState('idle');
+    }
+  };
+
   useEffect(() => {
-    setScanSteps({
-      dns: false,
-      init: false,
-      ssl: false,
-      content: false,
-      malware: false,
-      report: false,
-      complete: false
-    });
-    setScanState('idle');
-    setError(null);
-  }, [url]);
+    let animationFrame: number;
+    const animateProgress = () => {
+      setDisplayProgress(prev => {
+        const diff = scanProgress - prev;
+        if (Math.abs(diff) < 0.1) return scanProgress;
+        return prev + diff * 0.2;
+      });
+      animationFrame = requestAnimationFrame(animateProgress);
+    };
+    animationFrame = requestAnimationFrame(animateProgress);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [scanProgress]);
 
   const runScanStep = async (step: keyof typeof scanSteps, delay: number) => {
     await new Promise(resolve => setTimeout(resolve, delay));
@@ -52,67 +99,109 @@ export function URLScanner() {
   };
 
   const handleScan = async () => {
-    setScanState('scanning');
-    setError(null);
-    setScanProgress(0);
-    
-    // Reset scan steps
-    setScanSteps({
-      dns: false,
-      init: false,
-      ssl: false,
-      content: false,
-      malware: false,
-      report: false,
-      complete: false
-    });
-
     try {
-      // Start the visual scanning process
-      const steps: [keyof typeof scanSteps, number][] = [
-        ['dns', 500],
-        ['init', 800],
-        ['ssl', 1000],
-        ['content', 1200],
-        ['malware', 1500],
-        ['report', 1800],
-      ];
-
-      // Run each step with its delay
-      for (const [step, delay] of steps) {
-        await runScanStep(step, delay);
-        setScanProgress(prev => Math.min(prev + 100 / steps.length, 100));
+      // Format and validate URL before any state changes
+      const formattedUrl = formatUrl(url);
+      
+      // Basic URL validation
+      try {
+        const urlObj = new URL(formattedUrl);
+        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+          throw new Error('URL must use HTTP or HTTPS protocol');
+        }
+      } catch (e) {
+        throw new Error('Please enter a valid URL');
       }
+
+      // First update all states
+      setScanState('scanning');
+      setError(null);
+      setScanProgress(0);
+      setDisplayProgress(0);
+      setIsRedirecting(false);
+      setUrl(formattedUrl);
+      setDisplayUrl(formattedUrl);
+
+      // Reset scan steps
+      setScanSteps({
+        dns: false,
+        init: false,
+        ssl: false,
+        content: false,
+        malware: false,
+        report: false,
+        complete: false
+      });
+
+      // Small delay to ensure UI updates
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // Initialize scan
+      setScanSteps(prev => ({ ...prev, init: true }));
+      setScanProgress(10);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // DNS Check
+      setScanSteps(prev => ({ ...prev, dns: true }));
+      setScanProgress(25);
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const apiUrl = `${config.API_URL}${config.SCAN_ENDPOINTS.URL}`;
       console.log('Making API request to:', apiUrl);
-      console.log('Request body:', { url });
+      console.log('Request payload:', { url: formattedUrl });
+      
+      // SSL Check
+      setScanSteps(prev => ({ ...prev, ssl: true }));
+      setScanProgress(40);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: formattedUrl }),
       });
 
-      console.log('Response status:', response.status);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to scan URL');
+      }
+
+      // Content Analysis
+      setScanSteps(prev => ({ ...prev, content: true }));
+      setScanProgress(60);
+      
       const responseData = await response.json();
       console.log('Response data:', responseData);
 
-      if (!response.ok) {
-        throw new Error(responseData.message || 'Failed to scan URL');
+      if (!responseData.data?.scanId) {
+        throw new Error('Invalid response: missing scanId');
       }
 
-      // Mark scan as complete
-      setScanSteps(prev => ({ ...prev, complete: true }));
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Malware Check
+      setScanSteps(prev => ({ ...prev, malware: true }));
+      setScanProgress(80);
+      
+      // Report Generation
+      setScanSteps(prev => ({ ...prev, report: true }));
+      setScanProgress(90);
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Redirect to scan results page with the scan ID
-      router.push(`/scan-results/url?target=${encodeURIComponent(url)}&scanId=${responseData.data.scanId}`);
-    } catch (error) {
-      console.error('Error scanning URL:', error);
-      setError(error instanceof Error ? error.message : 'Failed to scan URL');
+      // Complete
+      setScanProgress(100);
+      setScanSteps(prev => ({ ...prev, complete: true }));
+      setScanState('complete');
+
+      // Prepare for redirect
+      setIsRedirecting(true);
+      // Wait for completion animation then redirect to results page
+      setTimeout(() => {
+        router.push(`/scan-results/url?scanId=${responseData.data.scanId}`);
+      }, 2000);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred during scanning');
       setScanState('error');
     }
   };
@@ -298,8 +387,8 @@ export function URLScanner() {
                       <Input
                         type="url"
                         value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        placeholder="Enter URL to scan..."
+                        onChange={handleUrlChange}
+                        placeholder="Enter URL to scan (e.g., example.com)"
                         className="flex-1 h-12 px-4 bg-transparent border-0 ring-2 ring-border/50 focus-visible:ring-2 focus-visible:ring-[#0EA5E9] rounded-xl transition-shadow duration-200"
                       />
                       <Button
@@ -353,42 +442,76 @@ export function URLScanner() {
                   className="rounded-lg overflow-hidden relative h-[450px]"
                 >
                   <Terminal className="font-mono text-sm p-4 h-full flex flex-col">
+                    {/* Progress Bar */}
+                    {scanState === 'scanning' && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-4 space-y-1"
+                      >
+                        <div className="h-2 bg-border/30 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-[#0EA5E9] to-[#6366F1]"
+                            style={{ 
+                              width: `${displayProgress}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="text-xs text-muted-foreground text-right">
+                          {Math.round(displayProgress)}% Complete
+                        </div>
+                      </motion.div>
+                    )}
+                    
                     <div className="flex-1 overflow-y-auto space-y-2">
-                      {scanState === 'scanning' && (
+                      {(scanState === 'scanning' || scanState === 'complete') && (
                         <>
                           <TypingAnimation>
-                            {`> Scanning URL: ${url}`}
+                            {`> Scanning URL: ${displayUrl}`}
                           </TypingAnimation>
 
                           <div className="space-y-2 mt-2">
-                            {renderScanStep('dns', 'Checking DNS records...')}
-                            {renderScanStep('init', 'Initializing scan process...')}
-                            {renderScanStep('ssl', 'Verifying SSL certificate...')}
-                            {renderScanStep('content', 'Analyzing content safety...')}
-                            {renderScanStep('malware', 'Checking malware database...')}
-                            {renderScanStep('report', 'Generating security report...')}
+                            {renderScanStep('init', 'Initializing security scan...')}
+                            {renderScanStep('dns', 'Validating domain and DNS records...')}
+                            {renderScanStep('ssl', 'Checking SSL/TLS configuration...')}
+                            {renderScanStep('content', 'Analyzing website content and structure...')}
+                            {renderScanStep('malware', 'Running malware detection scans...')}
+                            {renderScanStep('report', 'Compiling security analysis...')}
                             
                             {scanSteps.complete && (
-                              <>
-                                <AnimatedSpan delay={200} className="text-green-500">
-                                  <span>✓ URL IS SAFE</span>
+                              <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5 }}
+                                className="space-y-2"
+                              >
+                                <AnimatedSpan delay={200} className="text-green-500 font-semibold">
+                                  <span>✓ Scan Complete</span>
                                 </AnimatedSpan>
-                                <AnimatedSpan delay={400} className="text-muted-foreground">
-                                  <span>No malware detected</span>
-                                </AnimatedSpan>
-                                <AnimatedSpan delay={600} className="text-muted-foreground">
-                                  <span>SSL certificate valid</span>
-                                </AnimatedSpan>
-                                <AnimatedSpan delay={800} className="text-muted-foreground">
-                                  <span>Content verified</span>
-                                </AnimatedSpan>
-                              </>
+                                {isRedirecting && (
+                                  <>
+                                    <AnimatedSpan delay={400} className="text-blue-500">
+                                      <span>Preparing detailed analysis...</span>
+                                    </AnimatedSpan>
+                                    <AnimatedSpan delay={600} className="text-muted-foreground">
+                                      <div className="flex items-center gap-2">
+                                        <span>Redirecting to scan results</span>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent" />
+                                      </div>
+                                    </AnimatedSpan>
+                                  </>
+                                )}
+                              </motion.div>
                             )}
 
                             {error && (
-                              <AnimatedSpan delay={200} className="text-red-500">
+                              <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-red-500"
+                              >
                                 <span>✗ Error: {error}</span>
-                              </AnimatedSpan>
+                              </motion.div>
                             )}
                           </div>
                         </>

@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { URLScanService } from '../services/urlScanService';
+import { CommunityFeedbackController } from '../controllers/communityFeedbackController';
 import { APIError } from '../types/errors';
 
 const router = Router();
 const urlScanService = new URLScanService();
+const communityFeedbackController = new CommunityFeedbackController();
 
 // Submit URL for scanning
 router.post('/scan', async (req, res, next) => {
@@ -34,5 +36,8 @@ router.get('/scan/results/:scanId', async (req, res, next) => {
     next(error);
   }
 });
+
+// Get community feedback for a URL
+router.get('/community-feedback', communityFeedbackController.getCommunityFeedback.bind(communityFeedbackController));
 
 export default router;

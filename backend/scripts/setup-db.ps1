@@ -6,7 +6,8 @@ if (-not $psql) {
 }
 
 # Load environment variables from .env file
-$envContent = Get-Content .env
+$envPath = Join-Path $PSScriptRoot "..\.env"
+$envContent = Get-Content $envPath
 foreach ($line in $envContent) {
     if ($line -match '^([^=]+)=(.*)$') {
         $name = $matches[1].Trim()
@@ -34,7 +35,8 @@ psql -d postgres -c "CREATE DATABASE $dbName WITH ENCODING 'UTF8' LC_COLLATE='en
 
 # Now initialize schema
 Write-Host "Initializing database schema..."
-psql -d $dbName -f "src/config/init.sql"
+$initSqlPath = Join-Path $PSScriptRoot "..\src\config\init.sql"
+psql -d $dbName -f $initSqlPath
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Database setup completed successfully"

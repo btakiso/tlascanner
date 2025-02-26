@@ -7,18 +7,38 @@ export interface EngineResult {
   engine_name: string;
 }
 
-export interface CommunityReport {
-  user: string;
-  avatar: string;
-  comment: string;
-  date: string;
-  votes: number;
+export interface CommentVotes {
+  positive: number;
+  negative: number;
+  abuse: number;
+}
+
+export interface CommunityComment {
+  id: string;
+  text: string;
+  date: number;
+  tags: string[];
+  votes: CommentVotes;
+}
+
+export interface CommunityVote {
+  id: string;
+  date: number;
+  verdict: string;
+  value: number;
+}
+
+export interface VoteTotals {
+  harmless: number;
+  malicious: number;
 }
 
 export interface CommunityFeedback {
-  reports: CommunityReport[];
-  totalReports: number;
-  riskScore: number;
+  comments: CommunityComment[];
+  votes: CommunityVote[];
+  totalVotes: VoteTotals;
+  totalComments: number;
+  totalVotesCount: number;
 }
 
 export interface HTTPResponse {

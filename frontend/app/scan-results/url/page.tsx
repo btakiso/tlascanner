@@ -4,15 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Shield, ShieldAlert, Globe, Link2, AlertTriangle, CheckCircle, AlertOctagon, Info, Users, HelpCircle, Tag, FileText, Clock, Activity, Star, ThumbsUp } from "lucide-react";
+import { Shield, ShieldAlert, Globe, Link2, AlertTriangle, CheckCircle, AlertOctagon, Info, Users, HelpCircle, Tag, FileText, Clock, Activity, Star, ThumbsUp, MessageSquare } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { config } from "@/app/config";
 import { ThreatLevel, BaseScanStats } from "@/types/common";
-import { URLScanResponse } from "@/types/urlScan";
+import { URLScanResponse, CommunityComment } from "@/types/urlScan";
 import { ScanType, ScanStatus, DataSource } from "@/types/security";
 import {
   Chart as ChartJS,
@@ -436,7 +437,7 @@ export default function URLScanResults() {
             whileHover={{ scale: 1.01 }}
             transition={{ type: "spring", stiffness: 300 }}
           >
-            <Card className="border-2 border-border/50 bg-background/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] transition-all duration-300">
+            <Card className="border-2 border-border/50 bg-background/10 mt-6 rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Globe className="h-6 w-6" />
@@ -463,7 +464,7 @@ export default function URLScanResults() {
             whileHover={{ scale: 1.01 }}
             transition={{ type: "spring", stiffness: 300 }}
           >
-            <Card className="border-2 border-border/50 bg-background/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] transition-all duration-300">
+            <Card className="border-2 border-border/50 bg-background/10 mt-6 rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-6 w-6" />
@@ -1020,95 +1021,122 @@ export default function URLScanResults() {
                         <Users className="h-5 w-5" />
                         Community Feedback
                       </CardTitle>
-                      <CardDescription>Community reports and risk assessment</CardDescription>
+                      <CardDescription>Community insights and votes for this URL</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-6">
-                        {scanResult.data.communityFeedback ? (
-                          <>
-                            {/* Risk Score */}
+                      <div className="space-y-8">
+                        {/* Vote Summary */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <ThumbsUp className="h-4 w-4" />
+                            Community Votes
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <motion.div
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ duration: 0.2 }}
-                              className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                              className="p-4 rounded-lg border-2 border-border/50 bg-green-500/10"
                             >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h3 className="text-lg font-semibold">Risk Score</h3>
-                                  <p className="text-sm text-muted-foreground">
-                                    Based on {scanResult.data.communityFeedback.totalReports || 0} community reports
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <div className={`text-2xl font-bold ${
-                                    scanResult.data.communityFeedback.riskScore >= 7 ? 'text-red-500' :
-                                    scanResult.data.communityFeedback.riskScore >= 4 ? 'text-yellow-500' :
-                                    'text-green-500'
-                                  }`}>
-                                    {scanResult.data.communityFeedback.riskScore || 0}
-                                  </div>
-                                  <div className="text-sm text-muted-foreground">/10</div>
-                                </div>
-                              </div>
+                              <p className="text-sm font-medium text-muted-foreground mb-1">Harmless Votes</p>
+                              <p className="text-2xl font-bold">{scanResult?.data?.communityFeedback?.totalVotes?.harmless || 0}</p>
                             </motion.div>
-
-                            {/* Community Reports */}
-                            {scanResult.data.communityFeedback.reports && scanResult.data.communityFeedback.reports.length > 0 ? (
-                              <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">Recent Reports</h3>
-                                <div className="space-y-4">
-                                  {scanResult.data.communityFeedback.reports.map((report, index) => (
-                                    <motion.div
-                                      key={index}
-                                      initial={{ opacity: 0, y: 10 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      transition={{ duration: 0.2, delay: index * 0.1 }}
-                                      className="p-4 rounded-lg border-2 border-border/50 bg-primary/5 hover:border-primary/50 hover:bg-primary/10 transition-all duration-300"
-                                    >
-                                      <div className="flex items-start gap-4">
-                                        <div className="w-10 h-10 rounded-full overflow-hidden bg-primary/10">
-                                          <img
-                                            src={report.avatar}
-                                            alt={report.user}
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => {
-                                              const target = e.target as HTMLImageElement;
-                                              target.src = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
-                                            }}
-                                          />
-                                        </div>
-                                        <div className="flex-1">
-                                          <div className="flex items-center justify-between">
-                                            <p className="font-semibold">{report.user}</p>
-                                            <div className="flex items-center gap-2">
-                                              <p className="text-sm text-muted-foreground">{new Date(report.date).toLocaleDateString()}</p>
-                                              <div className="flex items-center gap-1">
-                                                <ThumbsUp className="h-4 w-4" />
-                                                <span className="text-sm">{report.votes}</span>
-                                              </div>
-                                            </div>
-                                          </div>
-                                          <p className="mt-2 text-sm">{report.comment}</p>
-                                        </div>
-                                      </div>
-                                    </motion.div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-center p-8 text-muted-foreground">
-                                <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                                <p>No community reports available yet</p>
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <div className="text-center p-8 text-muted-foreground">
-                            <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                            <p>Community feedback is not available for this URL</p>
+                            <motion.div
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.2, delay: 0.1 }}
+                              className="p-4 rounded-lg border-2 border-border/50 bg-red-500/10"
+                            >
+                              <p className="text-sm font-medium text-muted-foreground mb-1">Malicious Votes</p>
+                              <p className="text-2xl font-bold">{scanResult?.data?.communityFeedback?.totalVotes?.malicious || 0}</p>
+                            </motion.div>
                           </div>
-                        )}
+                        </div>
+
+                        {/* Comments Section */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <MessageSquare className="h-4 w-4" />
+                            Comments ({scanResult?.data?.communityFeedback?.totalComments || 0})
+                          </h3>
+                          <div className="space-y-4">
+                            {scanResult?.data?.communityFeedback?.comments.map((comment, index) => (
+                              <motion.div
+                                key={comment.id}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2, delay: index * 0.1 }}
+                                className="p-4 rounded-lg border-2 border-border/50 bg-primary/5"
+                              >
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Clock className="h-4 w-4 text-muted-foreground" />
+                                      <span className="text-sm text-muted-foreground">
+                                        {new Date(comment.date * 1000).toLocaleString()}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {comment.tags.map((tag, i) => (
+                                        <Badge key={i} variant="outline" className="bg-primary/5">
+                                          #{tag}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <p className="text-sm">{comment.text}</p>
+                                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                    <span>👍 {comment.votes.positive}</span>
+                                    <span>👎 {comment.votes.negative}</span>
+                                    {comment.votes.abuse > 0 && <span>⚠️ {comment.votes.abuse}</span>}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))}
+                            {(!scanResult?.data?.communityFeedback?.comments || scanResult.data.communityFeedback.comments.length === 0) && (
+                              <p className="text-center text-muted-foreground">No comments yet</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Individual Votes Section */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <Activity className="h-4 w-4" />
+                            Recent Votes ({scanResult?.data?.communityFeedback?.totalVotesCount || 0})
+                          </h3>
+                          <div className="space-y-4">
+                            {scanResult?.data?.communityFeedback?.votes.map((vote, index) => (
+                              <motion.div
+                                key={vote.id}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2, delay: index * 0.1 }}
+                                className={cn(
+                                  "p-4 rounded-lg border-2 border-border/50",
+                                  vote.verdict === "malicious" ? "bg-red-500/10" : "bg-green-500/10"
+                                )}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="h-4 w-4 text-muted-foreground" />
+                                    <span className="text-sm text-muted-foreground">
+                                      {new Date(vote.date * 1000).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <Badge
+                                    variant={vote.verdict === "malicious" ? "destructive" : "default"}
+                                  >
+                                    {vote.verdict}
+                                  </Badge>
+                                </div>
+                              </motion.div>
+                            ))}
+                            {(!scanResult?.data?.communityFeedback?.votes || scanResult.data.communityFeedback.votes.length === 0) && (
+                              <p className="text-center text-muted-foreground">No votes yet</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

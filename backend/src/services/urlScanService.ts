@@ -1,22 +1,102 @@
 import axios, { AxiosError } from 'axios';
-import dotenv from 'dotenv';
-import { ScanError, APIError } from '../types/errors';
-import { URLScanModel, URLScanRecord } from '../models/urlScan';
-import { URLSanitizer } from '../utils/urlSanitizer';
-import { VirusTotalAPI } from '../integrations/virusTotalAPI';
-import db from '../config/database';
+import { URLScanModel } from '../models/urlScan';
 import { URLScanResult } from '../types/urlScan';
+import { APIError, ScanError } from '../types/errors';
+import { VirusTotalAPI } from '../integrations/virusTotalAPI';
+import { VIRUSTOTAL_API_KEY, VT_API_URL } from '../config';
+import dotenv from 'dotenv';
+import { URLSanitizer } from '../utils/urlSanitizer';
+import db from '../config/database';
 
 dotenv.config();
 
-const VIRUSTOTAL_API_KEY = process.env.VIRUSTOTAL_API_KEY;
-const VT_API_URL = 'https://www.virustotal.com/api/v3';
+interface VTAttributes {
+  url: string;
+  domain: string;
+  last_analysis_stats: {
+    harmless: number;
+    malicious: number;
+    suspicious: number;
+    undetected: number;
+    timeout: number;
+  };
+  last_analysis_results: {
+    [key: string]: {
+      category: string;
+      result: string;
+      method: string;
+    };
+  };
+  last_analysis_date: string;
+  first_submission_date: string;
+  last_submission_date: string;
+  last_http_response: {
+    url?: string;
+    ip_address?: string;
+    status_code?: number;
+    content_length?: number;
+    sha256?: string;
+    headers?: { [key: string]: string };
+    redirect_chain?: string[];
+  };
+  total_votes?: {
+    harmless: number;
+    malicious: number;
+  };
+}
+
+interface VTResponse {
+  data: {
+    attributes: VTAttributes;
+  };
+}
+
+interface CommunityFeedback {
+  comments: {
+    id: string;
+    attributes: {
+      date: number;
+      text: string;
+      html: string;
+      votes: {
+        positive: number;
+        negative: number;
+        abuse: number;
+      };
+      tags: string[];
+    };
+    links: {
+      self: string;
+    };
+    type: string;
+  }[];
+  votes: {
+    id: string;
+    attributes: {
+      date: number;
+      verdict: string;
+      value: number;
+    };
+    links: {
+      self: string;
+    };
+    type: string;
+  }[];
+  totalVotes: {
+    harmless: number;
+    malicious: number;
+  };
+  totalComments: number;
+  totalVotesCount: number;
+}
 
 export class URLScanService {
   private urlScanModel: URLScanModel;
+  private vtApi: VirusTotalAPI;
 
   constructor() {
     this.urlScanModel = new URLScanModel();
+    this.vtApi = new VirusTotalAPI(VIRUSTOTAL_API_KEY!);
   }
 
   private async initializeDatabase(): Promise<void> {
@@ -49,24 +129,17 @@ export class URLScanService {
       
       return urlId;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const axiosError = error as AxiosError;
-        if (axiosError.response?.status === 401) {
-          throw new APIError('Invalid VirusTotal API key', 401);
-        }
-        if (axiosError.response?.status === 429) {
-          throw new APIError('VirusTotal API rate limit exceeded', 429);
-        }
-      }
-      throw new ScanError('Failed to submit URL for scanning');
+      console.error('Error submitting URL:', error);
+      throw this.handleError(error);
     }
   }
 
-  private async checkCache(url: string): Promise<URLScanRecord | null> {
+  private async checkCache(url: string): Promise<URLScanResult | null> {
     try {
-      return await this.urlScanModel.findRecentScan(url);
+      const record = await this.urlScanModel.findRecentScan(url);
+      return record ? record.results : null;
     } catch (error) {
-      console.error('Cache check failed:', error);
+      console.error('Error checking cache:', error);
       return null;
     }
   }
@@ -79,58 +152,62 @@ export class URLScanService {
     }
   }
 
-  public async getLastCachedResult(): Promise<URLScanRecord | null> {
+  public async getLastCachedResult(): Promise<URLScanResult | null> {
     try {
-      return await this.urlScanModel.findLastScan();
+      const record = await this.urlScanModel.findLastScan();
+      return record ? record.results : null;
     } catch (error) {
-      console.error('Failed to get last cached result:', error);
+      console.error('Error getting last cached result:', error);
       return null;
     }
   }
 
-  public async getAnalysisResults(id: string): Promise<any> {
+  public async getAnalysisResults(id: string): Promise<VTResponse> {
     try {
-      // Extract the resource ID from the analysis ID
-      const resourceId = id.includes('-') ? id.split('-')[1] : id;
-      
-      // Get the URL info
-      const response = await axios.get(`${VT_API_URL}/urls/${resourceId}`, {
-        headers: {
-          'x-apikey': VIRUSTOTAL_API_KEY,
-        },
-      });
+      if (!VIRUSTOTAL_API_KEY) {
+        throw new APIError('VirusTotal API key is not configured', 500);
+      }
 
-      // Extract the last analysis results
-      const lastAnalysisResults = response.data.data.attributes.last_analysis_results;
-      const stats = response.data.data.attributes.last_analysis_stats;
+      const vtReport = await this.vtApi.getURLReport(id) as Promise<VTResponse>;
+      return vtReport;
+    } catch (error) {
+      console.error('Error getting analysis results:', error);
+      throw this.handleError(error);
+    }
+  }
 
+  private async getCommunityFeedback(urlId: string): Promise<CommunityFeedback> {
+    try {
+      console.log('Fetching community data for URL ID:', urlId);
+      const [urlInfo, commentsResponse, votesResponse] = await Promise.all([
+        this.vtApi.getURLReport(urlId),
+        this.vtApi.getURLComments(urlId),
+        this.vtApi.getURLVotes(urlId)
+      ]);
+
+      // Get total votes from URL info
+      const totalVotes = urlInfo.data.attributes.total_votes || { harmless: 0, malicious: 0 };
+
+      // Comments and votes are already in the correct format from the API
       return {
-        data: {
-          attributes: {
-            url: response.data.data.attributes.url,
-            stats,
-            results: lastAnalysisResults,
-            first_submission_date: response.data.data.attributes.first_submission_date,
-            last_submission_date: response.data.data.attributes.last_submission_date,
-            last_http_response: response.data.data.attributes.last_http_response
-          }
-        }
+        comments: commentsResponse.data,
+        votes: votesResponse.data,
+        totalVotes,
+        totalComments: commentsResponse.meta?.count ?? 0,
+        totalVotesCount: Math.max(
+          votesResponse.meta?.count ?? 0,
+          (totalVotes.harmless || 0) + (totalVotes.malicious || 0)
+        )
       };
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const axiosError = error as AxiosError;
-        if (axiosError.response?.status === 404) {
-          throw new APIError('Scan results not found', 404);
-        }
-        if (axiosError.response?.status === 401) {
-          throw new APIError('Invalid VirusTotal API key', 401);
-        }
-        if (axiosError.response?.status === 429) {
-          throw new APIError('VirusTotal API rate limit exceeded', 429);
-        }
-      }
-      console.error('Error getting analysis results:', error);
-      throw new APIError('Failed to get analysis results', 500);
+      console.error('Error getting community feedback:', error);
+      return {
+        comments: [],
+        votes: [],
+        totalVotes: { harmless: 0, malicious: 0 },
+        totalComments: 0,
+        totalVotesCount: 0
+      };
     }
   }
 
@@ -141,31 +218,38 @@ export class URLScanService {
         if (!cachedResult) {
           throw new APIError('No cached results found', 404);
         }
-        return cachedResult.results;
+        return cachedResult;
       }
 
-      const vtResults = await this.getAnalysisResults(scanId);
-      const attributes = vtResults.data.attributes;
+      const vtReport = await this.getAnalysisResults(scanId);
+      const communityFeedback = await this.getCommunityFeedback(scanId);
 
+      const { attributes } = vtReport.data;
       return {
         status: 'success',
         data: {
           scanId,
-          url: attributes.url || '',
-          domain: new URL(attributes.url || '').hostname,
-          stats: {
-            harmless: attributes.stats.harmless || 0,
-            malicious: attributes.stats.malicious || 0,
-            suspicious: attributes.stats.suspicious || 0,
-            undetected: attributes.stats.undetected || 0,
-            timeout: attributes.stats.timeout || 0
+          url: attributes.url,
+          domain: attributes.domain || '',
+          stats: attributes.last_analysis_stats,
+          lastAnalysisResults: Object.entries(attributes.last_analysis_results).map(([engine, result]) => ({
+            engine,
+            category: result.category,
+            result: result.result,
+            method: result.method
+          })),
+          communityFeedback: {
+            comments: communityFeedback?.comments || [],
+            votes: communityFeedback?.votes || [],
+            totalVotes: communityFeedback?.totalVotes || { harmless: 0, malicious: 0 },
+            totalComments: communityFeedback?.totalComments || 0,
+            totalVotesCount: communityFeedback?.totalVotesCount || 0
           },
-          lastAnalysisResults: attributes.results || {},
-          scanDate: new Date().toISOString(),
-          firstSubmissionDate: attributes.first_submission_date ? new Date(attributes.first_submission_date * 1000).toISOString() : new Date().toISOString(),
-          lastSubmissionDate: attributes.last_submission_date ? new Date(attributes.last_submission_date * 1000).toISOString() : new Date().toISOString(),
+          scanDate: attributes.last_analysis_date,
+          firstSubmissionDate: attributes.first_submission_date,
+          lastSubmissionDate: attributes.last_submission_date,
           httpResponse: {
-            finalUrl: attributes.last_http_response?.url || attributes.url || '',
+            finalUrl: attributes.last_http_response?.url || '',
             ipAddress: attributes.last_http_response?.ip_address || '',
             statusCode: attributes.last_http_response?.status_code || 0,
             bodyLength: attributes.last_http_response?.content_length || 0,
@@ -176,68 +260,55 @@ export class URLScanService {
         }
       };
     } catch (error) {
-      if (error instanceof APIError) {
-        throw error;
-      }
-      throw new APIError('Failed to get scan results', 500);
+      console.error('Error getting scan results:', error);
+      throw this.handleError(error);
     }
   }
 
-  async scanURL(url: string): Promise<URLScanResult> {
+  public async scanURL(url: string): Promise<URLScanResult> {
     try {
-      if (!VIRUSTOTAL_API_KEY) {
-        throw new APIError('VirusTotal API key not configured', 500);
-      }
-
-      // Validate URL before sanitizing
-      if (!url || !URLSanitizer.isValidUrl(url)) {
-        throw new APIError('Invalid URL format', 400);
-      }
-
       // Sanitize the URL
-      let sanitizedUrl: string;
-      try {
-        sanitizedUrl = URLSanitizer.sanitize(url);
-      } catch (error) {
-        throw new APIError('Invalid URL format', 400);
-      }
+      const sanitizedUrl = URLSanitizer.sanitize(url);
 
       // Check cache for recent results
       const cachedResult = await this.checkCache(sanitizedUrl);
       if (cachedResult) {
-        return cachedResult.results;
+        return cachedResult;
       }
 
       // Submit URL for scanning
-      const id = await this.submitURL(sanitizedUrl);
-      
-      // Wait for initial analysis
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Get analysis results
-      const vtResults = await this.getAnalysisResults(id);
-      const attributes = vtResults.data.attributes;
+      const scanId = await this.submitURL(sanitizedUrl);
 
-      // Transform the data to match our frontend expectations
-      const transformedResults: URLScanResult = {
+      // Get analysis results
+      const vtReport = await this.getAnalysisResults(scanId);
+      const communityFeedback = await this.getCommunityFeedback(scanId);
+
+      const { attributes } = vtReport.data;
+      const results: URLScanResult = {
         status: 'success',
         data: {
-          scanId: id,
-          url: sanitizedUrl,
-          domain: new URL(sanitizedUrl).hostname,
-          stats: {
-            harmless: attributes.stats.harmless || 0,
-            malicious: attributes.stats.malicious || 0,
-            suspicious: attributes.stats.suspicious || 0,
-            undetected: attributes.stats.undetected || 0,
-            timeout: attributes.stats.timeout || 0
+          scanId,
+          url: attributes.url,
+          domain: attributes.domain || '',
+          stats: attributes.last_analysis_stats,
+          lastAnalysisResults: Object.entries(attributes.last_analysis_results).map(([engine, result]) => ({
+            engine,
+            category: result.category,
+            result: result.result,
+            method: result.method
+          })),
+          communityFeedback: {
+            comments: communityFeedback?.comments || [],
+            votes: communityFeedback?.votes || [],
+            totalVotes: communityFeedback?.totalVotes || { harmless: 0, malicious: 0 },
+            totalComments: communityFeedback?.totalComments || 0,
+            totalVotesCount: communityFeedback?.totalVotesCount || 0
           },
-          lastAnalysisResults: attributes.results || {},
-          scanDate: new Date().toISOString(),
-          firstSubmissionDate: attributes.first_submission_date ? new Date(attributes.first_submission_date * 1000).toISOString() : new Date().toISOString(),
-          lastSubmissionDate: attributes.last_submission_date ? new Date(attributes.last_submission_date * 1000).toISOString() : new Date().toISOString(),
+          scanDate: attributes.last_analysis_date,
+          firstSubmissionDate: attributes.first_submission_date,
+          lastSubmissionDate: attributes.last_submission_date,
           httpResponse: {
-            finalUrl: attributes.last_http_response?.url || sanitizedUrl,
+            finalUrl: attributes.last_http_response?.url || '',
             ipAddress: attributes.last_http_response?.ip_address || '',
             statusCode: attributes.last_http_response?.status_code || 0,
             bodyLength: attributes.last_http_response?.content_length || 0,
@@ -248,15 +319,26 @@ export class URLScanService {
         }
       };
 
-      // Cache the results
-      await this.saveScanResults(sanitizedUrl, id, transformedResults);
+      // Save results to database
+      await this.saveScanResults(sanitizedUrl, scanId, results);
 
-      return transformedResults;
+      return results;
     } catch (error) {
-      if (error instanceof APIError || error instanceof ScanError) {
-        throw error;
-      }
-      throw new ScanError('Failed to scan URL');
+      console.error('Error scanning URL:', error);
+      throw this.handleError(error);
     }
+  }
+
+  private handleError(error: any): APIError | ScanError {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+      if (axiosError.response?.status === 401) {
+        return new APIError('Invalid VirusTotal API key', 401);
+      }
+      if (axiosError.response?.status === 429) {
+        return new APIError('VirusTotal API rate limit exceeded', 429);
+      }
+    }
+    return new ScanError('Failed to scan URL');
   }
 }
