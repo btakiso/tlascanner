@@ -7,5 +7,9 @@ export const config = {
       URL: '/api/scan/url/scan/results',
       FILE: '/api/scan/file/results'
     }
+  },
+  CVE_ENDPOINTS: {
+    SEARCH: '/api/cve/search',
+    DETAILS: '/api/cve'
   }
 };

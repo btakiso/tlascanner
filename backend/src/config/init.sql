@@ -75,18 +75,21 @@ CREATE TABLE file_scans (
     error_message TEXT
 );
 
--- Create cve_cache table
-CREATE TABLE cve_cache (
-    id VARCHAR(20) PRIMARY KEY, -- CVE ID (e.g., CVE-2021-44228)
-    description TEXT,
-    severity VARCHAR(50),
-    cvss_score DECIMAL(3,1),
-    affected_products JSONB,
-    reference_urls JSONB,
-    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    nvd_data JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+-- Create CVE cache table
+CREATE TABLE IF NOT EXISTS cve_cache (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    cve_id VARCHAR(255) UNIQUE,
+    search_keyword TEXT UNIQUE,
+    cve_data JSONB,
+    response_data JSONB,
+    cached_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_cve_cache_cve_id ON cve_cache(cve_id);
+CREATE INDEX IF NOT EXISTS idx_cve_cache_search_keyword ON cve_cache(search_keyword);
+CREATE INDEX IF NOT EXISTS idx_cve_cache_cached_at ON cve_cache(cached_at);
 
 -- Create malware_analysis table
 CREATE TABLE malware_analysis (
@@ -118,7 +121,6 @@ CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
 CREATE INDEX idx_file_scans_user_id ON file_scans(user_id);
 CREATE INDEX idx_file_scans_hash ON file_scans(file_hash);
 CREATE INDEX idx_file_scans_status ON file_scans(scan_status);
-CREATE INDEX idx_cve_cache_severity ON cve_cache(severity);
 CREATE INDEX idx_malware_analysis_file_scan ON malware_analysis(file_scan_id);
 CREATE INDEX idx_community_feedback_scan_id ON community_feedback(scan_id);
 

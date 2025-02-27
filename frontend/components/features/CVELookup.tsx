@@ -8,13 +8,16 @@ import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { WaveContainer } from "../ui/wave-container";
+import { searchCVEs } from "@/services/cveService";
+import { CVESearchParams } from "@/types/cveScan";
 
 interface SearchStep {
   id: string
-  status: 'pending' | 'loading' | 'complete'
+  status: 'pending' | 'loading' | 'complete' | 'error'
   text: string
   description: string
   icon: any
+  error?: string
 }
 
 export function CVELookup() {
@@ -22,6 +25,7 @@ export function CVELookup() {
   const [query, setQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [searchSteps, setSearchSteps] = useState<SearchStep[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   const searchStepsList: SearchStep[] = [
     { 
@@ -57,26 +61,98 @@ export function CVELookup() {
   const handleSearch = async () => {
     if (!query.trim()) return
     setIsSearching(true)
+    setError(null)
     setSearchSteps(searchStepsList.map(step => ({ ...step, status: 'pending' })))
 
-    for (const step of searchStepsList) {
+    try {
+      // Step 1: Initialize
       setSearchSteps(prev => 
         prev.map(s => 
-          s.id === step.id ? { ...s, status: 'loading' } : s
+          s.id === 'init' ? { ...s, status: 'loading' } : s
         )
       )
-      await new Promise(resolve => setTimeout(resolve, 800))
+      await new Promise(resolve => setTimeout(resolve, 500))
       setSearchSteps(prev => 
         prev.map(s => 
-          s.id === step.id ? { ...s, status: 'complete' } : s
+          s.id === 'init' ? { ...s, status: 'complete' } : s
         )
       )
-    }
 
-    setTimeout(() => {
-      setIsSearching(false)
-      router.push(`/scan-results/cve?id=${encodeURIComponent(query)}`)
-    }, 1000)
+      // Step 2: Database Search
+      setSearchSteps(prev => 
+        prev.map(s => 
+          s.id === 'scan' ? { ...s, status: 'loading' } : s
+        )
+      )
+
+      // Prepare search parameters
+      const searchParams: CVESearchParams = {
+        keyword: query.startsWith('CVE-') ? undefined : query,
+        cveId: query.startsWith('CVE-') ? query : undefined,
+        resultsPerPage: 10
+      }
+
+      // Perform the actual search
+      const results = await searchCVEs(searchParams)
+      
+      setSearchSteps(prev => 
+        prev.map(s => 
+          s.id === 'scan' ? { ...s, status: 'complete' } : s
+        )
+      )
+
+      // Step 3: Risk Analysis
+      setSearchSteps(prev => 
+        prev.map(s => 
+          s.id === 'analyze' ? { ...s, status: 'loading' } : s
+        )
+      )
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setSearchSteps(prev => 
+        prev.map(s => 
+          s.id === 'analyze' ? { ...s, status: 'complete' } : s
+        )
+      )
+
+      // Step 4: Severity Check
+      setSearchSteps(prev => 
+        prev.map(s => 
+          s.id === 'assess' ? { ...s, status: 'loading' } : s
+        )
+      )
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setSearchSteps(prev => 
+        prev.map(s => 
+          s.id === 'assess' ? { ...s, status: 'complete' } : s
+        )
+      )
+
+      // Navigate to results page
+      setTimeout(() => {
+        setIsSearching(false)
+        if (query.startsWith('CVE-')) {
+          router.push(`/scan-results/cve?id=${encodeURIComponent(query)}`)
+        } else {
+          router.push(`/scan-results/cve?keyword=${encodeURIComponent(query)}`)
+        }
+      }, 800)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
+      
+      // Mark all remaining steps as error
+      setSearchSteps(prev => 
+        prev.map(s => 
+          s.status === 'pending' || s.status === 'loading' 
+            ? { ...s, status: 'error', error: errorMessage } 
+            : s
+        )
+      )
+      
+      setTimeout(() => {
+        setIsSearching(false)
+      }, 1000)
+    }
   }
 
   return (

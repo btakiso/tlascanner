@@ -49,6 +49,10 @@ class Database {
     return Database.instance;
   }
 
+  public getPool(): Pool {
+    return this.pool;
+  }
+
   /**
    * Execute a database query
    * @param text The SQL query text
