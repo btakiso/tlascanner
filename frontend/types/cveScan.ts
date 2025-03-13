@@ -26,6 +26,7 @@ export interface CVSSMetric {
     cvssData: CVSSData;
     exploitabilityScore?: number;
     impactScore?: number;
+    baseSeverity?: string;
 }
 
 export interface CVEReference {
@@ -42,16 +43,19 @@ export interface CVEWeakness {
 
 export interface CVEDetails {
     id: string;
-    sourceIdentifier: string;
+    sourceIdentifier?: string;
     published: string;
     lastModified: string;
-    vulnStatus: string;
+    vulnStatus?: string;
     descriptions: CVEDescription[];
     metrics: {
-        cvssMetrics: CVSSMetric[];
+        cvssMetrics?: CVSSMetric[];
+        cvssMetricV31?: CVSSMetric[];
+        cvssMetricV2?: CVSSMetric[];
     };
     references: CVEReference[];
     weaknesses: CVEWeakness[];
+    cve?: any; // For nested CVE data structure
 }
 
 export interface CVESearchParams {

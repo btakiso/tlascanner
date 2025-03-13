@@ -4,6 +4,10 @@ export interface CVESearchParams {
     cveId?: string;
     startIndex?: number;
     resultsPerPage?: number;
+    // Additional fields for search history tracking
+    userId?: string;
+    ipAddress?: string;
+    userAgent?: string;
 }
 
 // Response structure from NVD API
@@ -39,6 +43,8 @@ export interface CVEDescription {
 // Metrics including CVSS scores
 export interface CVEMetrics {
     cvssMetrics: CVSSMetric[];
+    cvssMetricV31?: CVSSMetric[];
+    cvssMetricV2?: CVSSMetric[];
 }
 
 // CVSS scoring metric

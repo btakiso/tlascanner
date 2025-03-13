@@ -8,6 +8,22 @@ import { config } from '@/app/config';
  */
 export async function searchCVEs(params: CVESearchParams): Promise<CVESearchResponse> {
   try {
+    // Validate that at least one search parameter is provided
+    if (!params.keyword && !params.cveId) {
+      throw new Error('Search requires either a keyword or CVE ID');
+    }
+    
+    // Validate CVE ID format if provided
+    if (params.cveId) {
+      if (params.cveId === 'undefined' || params.cveId.trim() === '') {
+        throw new Error('Invalid CVE ID: ID cannot be empty or undefined');
+      }
+      
+      if (!params.cveId.match(/^CVE-\d{4}-\d{4,}$/)) {
+        throw new Error(`Invalid CVE ID format: ${params.cveId}. Expected format: CVE-YYYY-NNNNN`);
+      }
+    }
+
     // Build query string
     const queryParams = new URLSearchParams();
     if (params.keyword) queryParams.append('keyword', params.keyword);
@@ -16,7 +32,7 @@ export async function searchCVEs(params: CVESearchParams): Promise<CVESearchResp
     if (params.resultsPerPage !== undefined) queryParams.append('resultsPerPage', params.resultsPerPage.toString());
 
     const apiUrl = `${config.API_URL}${config.CVE_ENDPOINTS.SEARCH}`;
-    console.log('Making API request to:', apiUrl);
+    console.log('Making CVE search request to:', apiUrl);
     console.log('Request params:', params);
 
     const response = await fetch(`${apiUrl}?${queryParams.toString()}`, {
@@ -35,13 +51,58 @@ export async function searchCVEs(params: CVESearchParams): Promise<CVESearchResp
         // If parsing JSON fails, use status text
         errorMessage = `${errorMessage}: ${response.statusText}`;
       }
+      
+      // Handle specific HTTP status codes
+      if (response.status === 404) {
+        return { 
+          vulnerabilities: [],
+          resultsPerPage: 0,
+          startIndex: 0,
+          totalResults: 0,
+          format: 'NVD_CVE',
+          version: '2.0',
+          timestamp: new Date().toISOString()
+        };
+      } else if (response.status === 429) {
+        throw new Error('API rate limit exceeded. Please try again later.');
+      }
+      
       throw new Error(errorMessage);
     }
 
-    const responseData = await response.json();
-    console.log('Response data:', responseData);
+    let responseData;
+    try {
+      responseData = await response.json();
+      console.log('Response data:', responseData);
+      
+      // Add detailed logging of the first vulnerability if available
+      if (responseData.vulnerabilities && responseData.vulnerabilities.length > 0) {
+        console.log('First vulnerability structure:', JSON.stringify(responseData.vulnerabilities[0], null, 2));
+      }
+    } catch (e) {
+      console.error('Error parsing response JSON:', e);
+      throw new Error('Invalid response format from server');
+    }
     
-    return responseData.data || responseData;
+    // Validate the response structure
+    if (!responseData) {
+      throw new Error('Empty response from server');
+    }
+    
+    // Handle both direct response and nested data property
+    const result = responseData.data || responseData;
+    
+    // Validate the result has the expected structure
+    if (!result || (typeof result === 'object' && Object.keys(result).length === 0)) {
+      throw new Error('Invalid response format: empty result object');
+    }
+    
+    // Ensure vulnerabilities is always an array
+    if (!result.vulnerabilities) {
+      result.vulnerabilities = [];
+    }
+    
+    return result;
   } catch (error) {
     console.error('Error searching CVEs:', error);
     throw error;
@@ -49,15 +110,25 @@ export async function searchCVEs(params: CVESearchParams): Promise<CVESearchResp
 }
 
 /**
- * Get detailed information about a specific CVE by ID
- * @param cveId The CVE ID (e.g., CVE-2021-44228)
- * @returns Promise with detailed CVE information
+ * Get detailed information about a specific CVE
+ * @param cveId CVE ID (e.g., CVE-2021-44228)
+ * @returns Promise with CVE details
  */
 export async function getCVEById(cveId: string): Promise<CVEDetails> {
   try {
+    // Validate CVE ID format
+    if (!cveId || cveId === 'undefined' || cveId.trim() === '') {
+      throw new Error('Invalid CVE ID: ID cannot be empty or undefined');
+    }
+    
+    // Validate CVE ID format using regex
+    if (!cveId.match(/^CVE-\d{4}-\d{4,}$/)) {
+      throw new Error(`Invalid CVE ID format: ${cveId}. Expected format: CVE-YYYY-NNNNN`);
+    }
+    
     const apiUrl = `${config.API_URL}${config.CVE_ENDPOINTS.DETAILS}/${cveId}`;
-    console.log('Making API request to:', apiUrl);
-
+    console.log('Making CVE details request to:', apiUrl);
+    
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
@@ -66,7 +137,7 @@ export async function getCVEById(cveId: string): Promise<CVEDetails> {
     });
 
     if (!response.ok) {
-      let errorMessage = `Failed to retrieve CVE ${cveId}`;
+      let errorMessage = 'Failed to retrieve CVE details';
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorData.error || errorMessage;
@@ -74,15 +145,41 @@ export async function getCVEById(cveId: string): Promise<CVEDetails> {
         // If parsing JSON fails, use status text
         errorMessage = `${errorMessage}: ${response.statusText}`;
       }
+      
+      // Handle specific HTTP status codes
+      if (response.status === 404) {
+        throw new Error(`CVE ${cveId} not found in the database`);
+      } else if (response.status === 429) {
+        throw new Error('API rate limit exceeded. Please try again later.');
+      }
+      
       throw new Error(errorMessage);
     }
 
-    const responseData = await response.json();
-    console.log('Response data:', responseData);
+    let responseData;
+    try {
+      responseData = await response.json();
+    } catch (e) {
+      console.error('Error parsing CVE details JSON:', e);
+      throw new Error('Invalid response format from server');
+    }
     
-    return responseData.data || responseData;
+    // Validate the response structure
+    if (!responseData) {
+      throw new Error('Empty response from server');
+    }
+    
+    // Handle both direct response and nested data property
+    const result = responseData.data || responseData;
+    
+    // Validate the result has the expected structure
+    if (!result || (typeof result === 'object' && Object.keys(result).length === 0)) {
+      throw new Error('Invalid response format: empty result object');
+    }
+    
+    return result;
   } catch (error) {
-    console.error(`Error retrieving CVE ${cveId}:`, error);
+    console.error('Error retrieving CVE details:', error);
     throw error;
   }
 }
@@ -93,11 +190,11 @@ export async function getCVEById(cveId: string): Promise<CVEDetails> {
  * @returns CSS class name for the color
  */
 export function getCVSSColor(score: number): string {
-  if (score >= 9.0) return 'bg-red-500';
-  if (score >= 7.0) return 'bg-orange-500';
-  if (score >= 4.0) return 'bg-yellow-500';
-  if (score > 0.0) return 'bg-blue-500';
-  return 'bg-gray-500';
+  if (score >= 9.0) return 'bg-gradient-to-br from-red-700 to-red-600 shadow-lg shadow-red-500/30 dark:from-red-700 dark:to-red-600 light:from-red-600 light:to-red-500';
+  if (score >= 7.0) return 'bg-gradient-to-br from-orange-700 to-orange-600 shadow-lg shadow-orange-500/30 dark:from-orange-700 dark:to-orange-600 light:from-orange-600 light:to-orange-500';
+  if (score >= 4.0) return 'bg-gradient-to-br from-amber-700 to-amber-600 shadow-lg shadow-amber-500/30 dark:from-amber-700 dark:to-amber-600 light:from-amber-600 light:to-amber-500';
+  if (score > 0.0) return 'bg-gradient-to-br from-green-700 to-green-600 shadow-lg shadow-green-500/30 dark:from-green-700 dark:to-green-600 light:from-green-600 light:to-green-500';
+  return 'bg-gradient-to-br from-slate-700 to-slate-600 shadow-lg shadow-slate-500/30 dark:from-slate-700 dark:to-slate-600 light:from-slate-600 light:to-slate-500';
 }
 
 /**
