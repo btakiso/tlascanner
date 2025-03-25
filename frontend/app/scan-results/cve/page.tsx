@@ -53,7 +53,8 @@ export default function CVEResultPage() {
   const [filterText, setFilterText] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(0);
-  const [resultsPerPage, setResultsPerPage] = useState(10);
+  // Fixed value instead of state variable
+  const resultsPerPage = 10;
   
   useEffect(() => {
     const fetchData = async () => {
@@ -109,7 +110,7 @@ export default function CVEResultPage() {
     return () => {
       // Cancel any pending requests or cleanup if needed
     };
-  }, [searchParams.get('id'), searchParams.get('keyword'), searchParams.get('page'), resultsPerPage]);
+  }, [searchParams.get('id'), searchParams.get('keyword'), searchParams.get('page')]);
 
   if (loading) {
     return (
@@ -246,24 +247,6 @@ export default function CVEResultPage() {
                   <SelectItem value="HIGH">High</SelectItem>
                   <SelectItem value="MEDIUM">Medium</SelectItem>
                   <SelectItem value="LOW">Low</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={resultsPerPage.toString()}
-                onValueChange={(value: string) => {
-                  setResultsPerPage(parseInt(value));
-                  // Reset to page 0 when changing results per page
-                  router.push(`/scan-results/cve?keyword=${searchParams.get('keyword')}&page=0`);
-                }}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Results per page" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5 per page</SelectItem>
-                  <SelectItem value="10">10 per page</SelectItem>
-                  <SelectItem value="25">25 per page</SelectItem>
-                  <SelectItem value="50">50 per page</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -34,7 +34,7 @@ export class CVEService {
                 console.log(`Using cached results for query:`, params);
                 
                 // Log the search to history even when using cached results
-                await this.logSearchHistory(params, cachedResults.totalResults || 0, params.userId, params.ipAddress, params.userAgent);
+                await this.logSearchHistory(params, cachedResults.totalResults || 0, params.ipAddress, params.userAgent);
                 
                 return cachedResults;
             }
@@ -47,7 +47,7 @@ export class CVEService {
             await this.cacheResults(params, results);
             
             // Log the search to history
-            await this.logSearchHistory(params, results.totalResults || 0, params.userId, params.ipAddress, params.userAgent);
+            await this.logSearchHistory(params, results.totalResults || 0, params.ipAddress, params.userAgent);
             
             return results;
         } catch (error) {
@@ -56,7 +56,7 @@ export class CVEService {
         }
     }
 
-    async getCVEById(cveId: string, userId?: string, ipAddress?: string, userAgent?: string): Promise<CVEItem | null> {
+    async getCVEById(cveId: string, ipAddress?: string, userAgent?: string): Promise<CVEItem | null> {
         try {
             // Validate CVE ID format
             if (!cveId || !cveId.match(/^CVE-\d{4}-\d{4,}$/)) {
@@ -67,7 +67,7 @@ export class CVEService {
             const cachedCVE = await this.getCachedCVE(cveId);
             if (cachedCVE) {
                 // Log the direct CVE lookup to history
-                await this.logSearchHistory({ cveId }, 1, userId, ipAddress, userAgent);
+                await this.logSearchHistory({ cveId }, 1, ipAddress, userAgent);
                 return cachedCVE;
             }
 
@@ -80,13 +80,13 @@ export class CVEService {
                 await this.cacheCVE(cveItem);
                 
                 // Log the direct CVE lookup to history
-                await this.logSearchHistory({ cveId }, 1, userId, ipAddress, userAgent);
+                await this.logSearchHistory({ cveId }, 1, ipAddress, userAgent);
                 
                 return cveItem;
             }
             
             // Log the failed lookup attempt
-            await this.logSearchHistory({ cveId }, 0, userId, ipAddress, userAgent);
+            await this.logSearchHistory({ cveId }, 0, ipAddress, userAgent);
             
             return null;
         } catch (error) {
@@ -222,7 +222,6 @@ export class CVEService {
     private async logSearchHistory(
         params: CVESearchParams, 
         resultsCount: number, 
-        userId?: string, 
         ipAddress?: string, 
         userAgent?: string
     ): Promise<void> {
@@ -252,7 +251,6 @@ export class CVEService {
             // No recent identical search found, proceed with logging
             const query = `
                 INSERT INTO cve_searches (
-                    user_id, 
                     cve_id, 
                     search_keyword, 
                     search_params, 
@@ -260,11 +258,10 @@ export class CVEService {
                     ip_address, 
                     user_agent
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                VALUES ($1, $2, $3, $4, $5, $6)
             `;
             
             await this.db.query(query, [
-                userId || null,
                 params.cveId || null,
                 params.keyword || null,
                 JSON.stringify(params),

@@ -5,7 +5,6 @@ export interface CVESearchParams {
     startIndex?: number;
     resultsPerPage?: number;
     // Additional fields for search history tracking
-    userId?: string;
     ipAddress?: string;
     userAgent?: string;
 }

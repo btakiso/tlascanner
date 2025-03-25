@@ -35,7 +35,6 @@ export class CVEController {
             // Add user information for search history tracking
             const searchParams = {
                 ...validatedParams,
-                userId: req.user?.id, // Assuming user info is attached to req by auth middleware
                 ipAddress: req.ip,
                 userAgent: req.headers['user-agent']
             };
@@ -102,11 +101,10 @@ export class CVEController {
             const { cveId } = cveIdSchema.parse(req.params);
             
             // Extract user information for search history tracking
-            const userId = req.user?.id; // Assuming user info is attached to req by auth middleware
             const ipAddress = req.ip;
             const userAgent = req.headers['user-agent'] as string;
             
-            const cve = await this.cveService.getCVEById(cveId, userId, ipAddress, userAgent);
+            const cve = await this.cveService.getCVEById(cveId, ipAddress, userAgent);
             
             if (!cve) {
                 res.status(404).json({
