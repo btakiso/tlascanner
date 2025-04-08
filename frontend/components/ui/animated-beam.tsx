@@ -22,6 +22,7 @@ export interface AnimatedBeamProps {
   startYOffset?: number
   endXOffset?: number
   endYOffset?: number
+  disabled?: boolean
 }
 
 export const AnimatedBeam = ({
@@ -42,12 +43,42 @@ export const AnimatedBeam = ({
   startYOffset = 0,
   endXOffset = 0,
   endYOffset = 0,
+  disabled = false,
 }: AnimatedBeamProps) => {
   const id = useId()
   const [path, setPath] = useState("")
   const [svgDimensions, setSvgDimensions] = useState({ width: 0, height: 0 })
+  const [isDevToolsOpen, setIsDevToolsOpen] = useState(false)
+
+  // Check if developer tools are open - using a more efficient method
+  useEffect(() => {
+    // Only check once on component mount
+    const checkDevTools = () => {
+      // Use window dimensions to detect dev tools
+      const threshold = 160;
+      const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+      const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+      
+      if (widthThreshold || heightThreshold) {
+        setIsDevToolsOpen(true);
+      }
+    };
+    
+    checkDevTools();
+    
+    // Listen for resize events which might indicate dev tools opening
+    const handleResize = () => {
+      checkDevTools();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
+    // Skip heavy calculations if disabled or dev tools are open
+    if (disabled || isDevToolsOpen) return;
+    
     const updatePath = () => {
       if (!containerRef.current || !fromRef.current || !toRef.current) return
 
@@ -71,19 +102,39 @@ export const AnimatedBeam = ({
       setPath(d)
     }
 
+    // Initial update
     updatePath()
-    window.addEventListener("resize", updatePath)
+    
+    // Throttled resize handler
+    let resizeTimeout: NodeJS.Timeout;
+    const handleResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(updatePath, 100);
+    };
+    
+    window.addEventListener("resize", handleResize)
 
-    const observer = new ResizeObserver(updatePath)
+    // Use ResizeObserver with throttling
+    const observer = new ResizeObserver(() => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(updatePath, 100);
+    });
+    
     if (containerRef.current) {
       observer.observe(containerRef.current)
     }
 
     return () => {
-      window.removeEventListener("resize", updatePath)
+      window.removeEventListener("resize", handleResize)
       observer.disconnect()
+      clearTimeout(resizeTimeout);
     }
-  }, [containerRef, fromRef, toRef, curvature, startXOffset, startYOffset, endXOffset, endYOffset])
+  }, [containerRef, fromRef, toRef, curvature, startXOffset, startYOffset, endXOffset, endYOffset, disabled, isDevToolsOpen])
+
+  // If disabled or dev tools are open, render a simplified version
+  if (disabled || isDevToolsOpen) {
+    return null;
+  }
 
   return (
     <svg
