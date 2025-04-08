@@ -22,7 +22,10 @@ import {
   Lock,
   ServerCrash,
   FileSearch,
-  FileText
+  FileText,
+  CloudUpload,
+  Shield,
+  Database
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -32,6 +35,8 @@ import { cn } from "@/lib/utils"
 import { useTheme } from "next-themes"
 import { AnimatedBeam } from "@/components/ui/animated-beam"
 import { WaveContainer } from "../ui/wave-container";
+import { uploadAndScanFile, checkFileScanStatus } from "@/services/fileScanApi"
+import { toast } from "sonner"
 
 interface ScanResult {
   id: string
@@ -42,10 +47,33 @@ interface ScanResult {
   threats: string[]
 }
 
+interface ExtendedFileScanResponse {
+  status: string;
+  scanId?: string;
+  stats?: {
+    harmless: number;
+    malicious: number;
+    suspicious: number;
+    undetected: number;
+    timeout?: number;
+    total?: number;
+  };
+  progress?: number;
+}
+
 interface CircleProps {
   children?: ReactNode
   className?: string
 }
+
+type ScanStage = 
+  | "uploading" 
+  | "queued" 
+  | "analyzing" 
+  | "checking_signatures" 
+  | "behavioral_analysis" 
+  | "finalizing" 
+  | "complete"
 
 const Circle = forwardRef<HTMLDivElement, CircleProps>(({ children, className }, ref) => {
   return (
@@ -82,6 +110,74 @@ export function FileScanner() {
   const [uploadState, setUploadState] = useState<'idle' | 'selected' | 'scanning'>('idle')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [scanProgress, setScanProgress] = useState(0)
+  const [scanStage, setScanStage] = useState<ScanStage>("uploading")
+  const [scanId, setScanId] = useState<string | null>(null)
+  const [statusMessage, setStatusMessage] = useState<string>("Preparing to upload file...")
+  const [statusCheckInterval, setStatusCheckInterval] = useState<NodeJS.Timeout | null>(null)
+  const [progressInterval, setProgressInterval] = useState<NodeJS.Timeout | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [pollingDelay, setPollingDelay] = useState<number>(5000)
+  const [consecutiveErrors, setConsecutiveErrors] = useState<number>(0)
+  const maxPollingDelay = 15000
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null)
+  const [lastProgressUpdate, setLastProgressUpdate] = useState<number>(Date.now())
+  const [stuckDetected, setStuckDetected] = useState<boolean>(false)
+
+  // Clean up intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+      }
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+    };
+  }, [statusCheckInterval, progressInterval]);
+
+  // Update status message based on scan stage
+  useEffect(() => {
+    switch (scanStage) {
+      case "uploading":
+        setStatusMessage("Uploading file to secure server...");
+        break;
+      case "queued":
+        setStatusMessage("File uploaded. Waiting in scan queue...");
+        break;
+      case "analyzing":
+        setStatusMessage("Analyzing file structure and contents...");
+        break;
+      case "checking_signatures":
+        setStatusMessage("Checking against known malware signatures...");
+        break;
+      case "behavioral_analysis":
+        setStatusMessage("Performing behavioral analysis...");
+        break;
+      case "finalizing":
+        setStatusMessage("Finalizing scan results...");
+        break;
+      case "complete":
+        setStatusMessage("Scan complete! Redirecting to results...");
+        break;
+    }
+  }, [scanStage]);
+
+  // Check if progress is stuck
+  useEffect(() => {
+    if (uploadState === 'scanning' && scanProgress > 0 && scanProgress < 100) {
+      const stuckCheckInterval = setInterval(() => {
+        const timeSinceLastUpdate = Date.now() - lastProgressUpdate;
+        // If no progress for more than 15 seconds, show additional message
+        if (timeSinceLastUpdate > 15000 && !stuckDetected) {
+          setStuckDetected(true);
+          setStatusMessage(prev => `${prev} (Still working, this may take a while...)`);
+        }
+      }, 5000);
+      
+      return () => clearInterval(stuckCheckInterval);
+    }
+  }, [uploadState, scanProgress, lastProgressUpdate, stuckDetected]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -112,37 +208,214 @@ export function FileScanner() {
   }
 
   const startScan = async () => {
-    if (!selectedFile) return
-
-    setUploadState('scanning')
-    setScanProgress(0)
-
-    // Simulate scanning process
-    await new Promise<void>((resolve) => {
-      let progress = 0
-      const interval = setInterval(() => {
-        progress += Math.random() * 10
-        if (progress >= 100) {
-          progress = 100
-          clearInterval(interval)
-          resolve()
-        }
-        setScanProgress(Math.min(progress, 100))
-      }, 200)
-    })
-
-    const result: ScanResult = {
-      id: Math.random().toString(36).substr(2, 9),
-      fileName: selectedFile.name,
-      fileSize: formatFileSize(selectedFile.size),
-      timestamp: new Date(),
-      status: Math.random() > 0.7 ? "suspicious" : "clean",
-      threats: Math.random() > 0.7 ? ["Potential malware detected", "Suspicious behavior"] : [],
+    if (!selectedFile) {
+      console.error("No file selected");
+      return;
     }
 
-    // Navigate to scan results page with file name and scan ID
-    router.push(`/scan-results/file?file=${encodeURIComponent(selectedFile.name)}&scanId=${result.id}`)
-  }
+    try {
+      // Reset scan state
+      setUploadState('scanning');
+      setScanProgress(0);
+      setScanStage("uploading");
+      setStatusMessage("Preparing file...");
+      setScanResult(null);
+      setError(null);
+      setStuckDetected(false);
+      setLastProgressUpdate(Date.now());
+      
+      // Clear any existing intervals
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        setProgressInterval(null);
+      }
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        setStatusCheckInterval(null);
+      }
+      
+      // Add file size validation (32MB limit)
+      const MAX_FILE_SIZE = 32 * 1024 * 1024; // 32MB in bytes
+      if (selectedFile.size > MAX_FILE_SIZE) {
+        throw new Error(`File size exceeds the 32MB limit. Your file is ${(selectedFile.size / (1024 * 1024)).toFixed(2)}MB.`);
+      }
+      
+      // Set up initial progress animation
+      const interval = setInterval(() => {
+        setScanProgress((prev) => {
+          if (prev >= 95) return prev;
+          
+          // Adjust progress increment based on scan stage
+          const stageMultiplier: Record<ScanStage, number> = {
+            uploading: 0.7,
+            queued: 0.3,
+            analyzing: 0.5,
+            checking_signatures: 0.6,
+            behavioral_analysis: 0.8,
+            finalizing: 0.9,
+            complete: 1.0
+          };
+          
+          // Smaller, more frequent increments for smoother progress
+          const increment = Math.random() * 2 * (stageMultiplier[scanStage] || 0.5);
+          const nextProgress = prev + increment;
+          
+          // More granular stage caps with overlap to prevent getting stuck at specific percentages
+          const stageCaps: Record<ScanStage, number> = {
+            uploading: 25,
+            queued: 40,
+            analyzing: 60,
+            checking_signatures: 75,
+            behavioral_analysis: 90,
+            finalizing: 95,
+            complete: 100
+          };
+          
+          const cap = stageCaps[scanStage] || 95;
+          
+          // Update timestamp whenever progress changes
+          if (nextProgress > prev) {
+            setLastProgressUpdate(Date.now());
+            setStuckDetected(false);
+          }
+          
+          return nextProgress > cap ? cap : nextProgress;
+        });
+      }, 200); // More frequent updates for smoother animation
+      
+      setProgressInterval(interval);
+      
+      // Start file upload
+      console.log("Uploading file to API...");
+      setScanStage("uploading");
+      
+      // Upload retry mechanism with backoff
+      let uploadAttempts = 0;
+      const maxUploadAttempts = 3; 
+      let uploadBackoff = 3000; 
+      let result;
+      
+      // Circuit breaker pattern - check if we've had recent failures
+      const lastFailureTime = localStorage.getItem('lastScanFailureTime');
+      const failureCount = parseInt(localStorage.getItem('scanFailureCount') || '0');
+      
+      // If we've had multiple failures recently, implement a cooling period
+      if (lastFailureTime && failureCount > 3) {
+        const timeSinceLastFailure = Date.now() - parseInt(lastFailureTime);
+        const cooldownPeriod = 60000; 
+        
+        if (timeSinceLastFailure < cooldownPeriod) {
+          const remainingCooldown = Math.ceil((cooldownPeriod - timeSinceLastFailure) / 1000);
+          setStatusMessage(`Server is experiencing high load. Please wait ${remainingCooldown} seconds before trying again.`);
+          throw new Error(`Please wait ${remainingCooldown} seconds before trying again due to server load.`);
+        }
+      }
+      
+      while (uploadAttempts < maxUploadAttempts) {
+        try {
+          setStatusMessage(`Uploading file${uploadAttempts > 0 ? ` (attempt ${uploadAttempts + 1}/${maxUploadAttempts})` : ''}...`);
+          result = await uploadAndScanFile(selectedFile);
+          console.log("Upload complete, scan initiated:", result);
+          
+          // Reset failure tracking on success
+          localStorage.setItem('scanFailureCount', '0');
+          
+          // If successful, break out of the retry loop
+          break;
+        } catch (error) {
+          console.error("Upload attempt failed:", error);
+          uploadAttempts++;
+          
+          // Check for specific error types
+          if (error instanceof Error) {
+            // Check for file size error (HTTP 413)
+            if (error.message.includes('413') || error.message.includes('size exceeds')) {
+              throw new Error(`File size exceeds the 32MB limit. Please choose a smaller file.`);
+            }
+            
+            // Check if it's a rate limit error
+            if (error.message.includes('429')) {
+              // Update failure tracking
+              const currentFailures = parseInt(localStorage.getItem('scanFailureCount') || '0');
+              localStorage.setItem('scanFailureCount', (currentFailures + 1).toString());
+              localStorage.setItem('lastScanFailureTime', Date.now().toString());
+              
+              if (uploadAttempts < maxUploadAttempts) {
+                // Show user-friendly message about rate limiting
+                setStatusMessage(`Rate limit reached. Waiting ${uploadBackoff/1000} seconds before retry... (${uploadAttempts}/${maxUploadAttempts})`);
+                
+                // Wait before retrying
+                await new Promise(resolve => setTimeout(resolve, uploadBackoff));
+                
+                // Increase backoff for next attempt (exponential backoff)
+                uploadBackoff = Math.min(uploadBackoff * 2, 20000); 
+              } else {
+                // We've exhausted our retries
+                throw new Error("Server is busy. Please try again later.");
+              }
+            } else if (uploadAttempts < maxUploadAttempts) {
+              // For other errors, retry with backoff if we haven't exhausted retries
+              setStatusMessage(`Error occurred. Retrying in ${uploadBackoff/1000} seconds... (${uploadAttempts}/${maxUploadAttempts})`);
+              await new Promise(resolve => setTimeout(resolve, uploadBackoff));
+              uploadBackoff = Math.min(uploadBackoff * 2, 20000);
+            } else {
+              // We've exhausted our retries for non-rate-limit errors
+              throw error;
+            }
+          } else {
+            // For unknown error types, just throw and exit
+            throw new Error("An unknown error occurred during file upload.");
+          }
+        }
+      }
+      
+      // If we've exhausted retries without success
+      if (!result) {
+        throw new Error(`Upload failed after ${maxUploadAttempts} attempts. Please try again later.`);
+      }
+      
+      // Store scan ID for status checks
+      setScanId(result.scanId);
+      
+      // Start checking scan status with a longer initial delay
+      setTimeout(() => {
+        checkScanStatus(result.scanId);
+      }, 5000); // Start with a 5-second delay before first status check
+    } catch (error) {
+      console.error("Scan error:", error);
+      
+      // Clear any intervals
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        setProgressInterval(null);
+      }
+      
+      // Reset state
+      setUploadState('idle');
+      setScanProgress(0);
+      setScanStage("uploading");
+      
+      // Display user-friendly error message
+      let errorMessage = "An unknown error occurred";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Provide more user-friendly messages for common errors
+        if (error.message.includes('413') || error.message.includes('size exceeds')) {
+          errorMessage = `File size exceeds the 32MB limit. Please choose a smaller file.`;
+        } else if (error.message.includes('429')) {
+          errorMessage = `Server is busy. Please try again in a few minutes.`;
+        } else if (error.message.includes('500')) {
+          errorMessage = `Server error. Please try again later or contact support if the issue persists.`;
+        }
+      }
+      
+      // Show error toast
+      toast.error(errorMessage);
+      setError(errorMessage);
+    }
+  };
 
   const cancelUpload = () => {
     setSelectedFile(null)
@@ -178,6 +451,139 @@ export function FileScanner() {
         return <FileText className="size-6 text-gray-500" />
     }
   }
+
+  // Helper function to calculate progress from status
+  const calculateProgressFromStatus = (result: ExtendedFileScanResponse): number => {
+    // If no status info is available, use a default progress based on time elapsed
+    if (result.status === "pending") return 10;
+    if (result.status === "scanning") {
+      // Calculate progress based on stats if available
+      if (result.stats) {
+        // Calculate total if not provided
+        const processed = (result.stats.harmless || 0) + 
+                         (result.stats.malicious || 0) + 
+                         (result.stats.suspicious || 0) + 
+                         (result.stats.undetected || 0);
+        
+        // Use the calculated total or the provided total, or default to 1 to avoid division by zero
+        const total = result.stats.total || processed || 1;
+        
+        return Math.min(95, Math.round((processed / total) * 100));
+      }
+      return 50; // Default mid-progress
+    }
+    if (result.status === "completed") return 100;
+    return 0;
+  };
+
+  const checkScanStatus = async (scanId: string) => {
+    if (!scanId) return;
+    
+    try {
+      const statusResult: ExtendedFileScanResponse = await checkFileScanStatus(scanId);
+      console.log("Scan status update:", statusResult);
+      
+      // Calculate total if not provided
+      if (statusResult.stats && !statusResult.stats.total) {
+        statusResult.stats.total = 
+          (statusResult.stats.malicious || 0) + 
+          (statusResult.stats.suspicious || 0) + 
+          (statusResult.stats.harmless || 0) + 
+          (statusResult.stats.undetected || 0);
+      }
+      
+      // Reset error counter and gradually decrease polling delay on success
+      setConsecutiveErrors(0);
+      if (pollingDelay > 2000) {
+        setPollingDelay(Math.max(2000, pollingDelay - 1000));
+        // We'll update the interval after this execution completes
+      }
+      
+      // Update scan stage based on status
+      if (statusResult.status === "scanning") {
+        // Simulate progress percentage if not provided by API
+        const progressPercent = statusResult.progress || calculateProgressFromStatus(statusResult);
+        
+        // Determine scan stage based on progress percentage with overlapping ranges
+        // to prevent getting stuck at specific percentages
+        if (progressPercent < 25) {
+          setScanStage("queued");
+          setStatusMessage("File in processing queue. Preparing for analysis...");
+        } else if (progressPercent < 45) {
+          setScanStage("analyzing");
+          setStatusMessage("Analyzing file structure and contents...");
+        } else if (progressPercent < 65) {
+          setScanStage("checking_signatures");
+          setStatusMessage("Checking against malware databases and signatures...");
+        } else if (progressPercent < 85) {
+          setScanStage("behavioral_analysis");
+          setStatusMessage("Performing behavioral and heuristic analysis...");
+        } else {
+          setScanStage("finalizing");
+          setStatusMessage("Finalizing scan results and generating report...");
+        }
+        
+        // Set actual progress if available from API with a small increment
+        // to show continuous movement
+        if (statusResult.progress) {
+          const randomIncrement = Math.random() * 2;
+          const newProgress = Math.min(95, statusResult.progress + randomIncrement);
+          setScanProgress(newProgress);
+          setLastProgressUpdate(Date.now());
+          setStuckDetected(false);
+        }
+      } else if (statusResult.status === "completed") {
+        // Scan is complete
+        setScanStage("complete");
+        setScanProgress(100);
+        setLastProgressUpdate(Date.now());
+        
+        // Clear the interval
+        if (statusCheckInterval) {
+          clearInterval(statusCheckInterval);
+          setStatusCheckInterval(null);
+        }
+        
+        // Navigate to results page
+        setTimeout(() => {
+          if (selectedFile) {
+            const url = `/scan-results/file?file=${encodeURIComponent(selectedFile.name)}&scanId=${scanId}`;
+            console.log("Scan complete. Navigating to:", url);
+            router.push(url);
+          }
+        }, 1000);
+        
+        // Exit the function early since we're done
+        return;
+      }
+    } catch (error) {
+      console.error("Error checking scan status:", error);
+      
+      // Handle rate limit errors specifically
+      if (error instanceof Error && error.message.includes('429')) {
+        setConsecutiveErrors(consecutiveErrors + 1);
+        
+        // Increase polling delay exponentially when hitting rate limits
+        setPollingDelay(Math.min(maxPollingDelay, pollingDelay * 1.5));
+        
+        // Update the status message to inform the user
+        setStatusMessage(`Rate limit reached. Reducing check frequency (${Math.round(pollingDelay/1000)}s intervals)...`);
+      }
+      
+      // If we've had too many consecutive errors, show a more permanent error message
+      if (consecutiveErrors > 5) {
+        setStatusMessage("Experiencing connection issues. Scan continues in the background.");
+      }
+    }
+    
+    // Update the interval with the new delay
+    if (statusCheckInterval) {
+      clearInterval(statusCheckInterval);
+    }
+    
+    const newInterval = setInterval(() => checkScanStatus(scanId), pollingDelay);
+    setStatusCheckInterval(newInterval);
+  };
 
   return (
     <motion.div 
@@ -234,6 +640,10 @@ export function FileScanner() {
                 Upload and scan files for potential security threats. Our advanced scanning system detects malware,
                 ransomware, and other malicious content.
               </p>
+              <div className="text-xs text-muted-foreground bg-muted p-2 rounded-md mt-1 flex items-center">
+                <FileWarning className="w-3 h-3 mr-1 text-yellow-500" />
+                <span>File Size Limitation: Files must be under 32MB.</span>
+              </div>
             </div>
 
             <div className="flex gap-6">
@@ -261,7 +671,6 @@ export function FileScanner() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
-                      whileHover={{ scale: 1.01 }}
                       transition={{ duration: 0.2 }}
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
@@ -364,18 +773,121 @@ export function FileScanner() {
                             animate={{ rotate: 360 }}
                             transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                           >
-                            <ScanSearch className="size-6 text-purple-600" />
+                            {scanStage === "uploading" && <CloudUpload className="size-6 text-blue-600" />}
+                            {scanStage === "queued" && <Database className="size-6 text-yellow-600" />}
+                            {(scanStage === "analyzing" || scanStage === "checking_signatures") && <ScanSearch className="size-6 text-purple-600" />}
+                            {scanStage === "behavioral_analysis" && <BugPlay className="size-6 text-orange-600" />}
+                            {scanStage === "finalizing" && <Shield className="size-6 text-green-600" />}
+                            {scanStage === "complete" && <CheckCircle className="size-6 text-green-600" />}
                           </motion.div>
                         </div>
                         <div className="flex-1">
                           <h3 className="text-sm font-medium text-purple-900 dark:text-purple-100">
-                            Scanning file...
+                            {scanStage === "complete" ? "Scan complete!" : "Scanning file..."}
                           </h3>
-                          <Progress value={scanProgress} className="h-1 mt-2" />
+                          <div className="relative">
+                            <Progress 
+                              value={scanProgress} 
+                              className={cn(
+                                "h-3 mt-2 bg-gray-200 dark:bg-gray-700 relative overflow-hidden",
+                                scanStage === "complete" ? "[&>div]:bg-green-500" : "[&>div]:bg-gradient-to-r [&>div]:from-blue-500 [&>div]:via-purple-500 [&>div]:to-purple-600"
+                              )}
+                            />
+                            {/* Animated shimmer effect on the progress bar */}
+                            {scanProgress < 100 && (
+                              <motion.div 
+                                className="absolute inset-0 mt-2 pointer-events-none"
+                                animate={{ 
+                                  background: [
+                                    "linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%)",
+                                    "linear-gradient(90deg, transparent 100%, rgba(255, 255, 255, 0.3) 50%, transparent 0%)"
+                                  ],
+                                  backgroundSize: "200% 100%",
+                                  backgroundPosition: ["0% 0%", "100% 0%"]
+                                }}
+                                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                                style={{ height: "3px" }}
+                              />
+                            )}
+                          </div>
+                          <div className="flex justify-between mt-1">
+                            <span className="text-xs text-purple-700 dark:text-purple-300">{Math.round(scanProgress)}%</span>
+                            <span className="text-xs text-purple-700 dark:text-purple-300">
+                              {scanStage === "complete" ? "Done" : "In progress"}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <p className="text-xs text-purple-700 dark:text-purple-300 text-center">
-                        Analyzing {selectedFile.name} for potential threats
+                      
+                      <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 mt-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`size-2 rounded-full ${
+                            scanStage === "uploading" ? "bg-blue-500 animate-pulse" : 
+                            scanStage === "complete" ? "bg-green-500" : "bg-gray-300 dark:bg-gray-700"
+                          }`} />
+                          <span className={`text-xs ${
+                            scanStage === "uploading" ? "text-blue-600 dark:text-blue-400 font-medium" : 
+                            scanStage === "complete" ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"
+                          }`}>
+                            File upload
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`size-2 rounded-full ${
+                            scanStage === "queued" ? "bg-yellow-500 animate-pulse" : 
+                            scanStage === "complete" ? "bg-green-500" : "bg-gray-300 dark:bg-gray-700"
+                          }`} />
+                          <span className={`text-xs ${
+                            scanStage === "queued" ? "text-yellow-600 dark:text-yellow-400 font-medium" : 
+                            scanStage === "complete" ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"
+                          }`}>
+                            Queue processing
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`size-2 rounded-full ${
+                            scanStage === "analyzing" || scanStage === "checking_signatures" ? "bg-purple-500 animate-pulse" : 
+                            scanStage === "complete" ? "bg-green-500" : "bg-gray-300 dark:bg-gray-700"
+                          }`} />
+                          <span className={`text-xs ${
+                            scanStage === "analyzing" || scanStage === "checking_signatures" ? "text-purple-600 dark:text-purple-400 font-medium" : 
+                            scanStage === "complete" ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"
+                          }`}>
+                            Malware analysis
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`size-2 rounded-full ${
+                            scanStage === "behavioral_analysis" ? "bg-orange-500 animate-pulse" : 
+                            scanStage === "complete" ? "bg-green-500" : "bg-gray-300 dark:bg-gray-700"
+                          }`} />
+                          <span className={`text-xs ${
+                            scanStage === "behavioral_analysis" ? "text-orange-600 dark:text-orange-400 font-medium" : 
+                            scanStage === "complete" ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"
+                          }`}>
+                            Behavioral analysis
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <div className={`size-2 rounded-full ${
+                            scanStage === "finalizing" ? "bg-green-500 animate-pulse" : 
+                            scanStage === "complete" ? "bg-green-500" : "bg-gray-300 dark:bg-gray-700"
+                          }`} />
+                          <span className={`text-xs ${
+                            scanStage === "finalizing" ? "text-green-600 dark:text-green-400 font-medium" : 
+                            scanStage === "complete" ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"
+                          }`}>
+                            Finalizing results
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <p className="text-xs text-purple-700 dark:text-purple-300 text-center mt-3">
+                        {statusMessage}
                       </p>
                     </motion.div>
                   )}
@@ -494,6 +1006,7 @@ export function FileScanner() {
                       pathWidth={2}
                       gradientStartColor="#6366f1"
                       gradientStopColor="#4f46e5"
+                      disabled={uploadState === 'scanning'}
                     />
                     <AnimatedBeam
                       containerRef={containerRef}
@@ -507,6 +1020,7 @@ export function FileScanner() {
                       pathWidth={2}
                       gradientStartColor="#10b981"
                       gradientStopColor="#059669"
+                      disabled={uploadState === 'scanning'}
                     />
                     <AnimatedBeam
                       containerRef={containerRef}
@@ -520,6 +1034,7 @@ export function FileScanner() {
                       pathWidth={2}
                       gradientStartColor="#14b8a6"
                       gradientStopColor="#0d9488"
+                      disabled={uploadState === 'scanning'}
                     />
                     <AnimatedBeam
                       containerRef={containerRef}
@@ -534,6 +1049,7 @@ export function FileScanner() {
                       gradientStartColor="#06b6d4"
                       gradientStopColor="#0891b2"
                       reverse
+                      disabled={uploadState === 'scanning'}
                     />
                     <AnimatedBeam
                       containerRef={containerRef}
@@ -548,6 +1064,7 @@ export function FileScanner() {
                       gradientStartColor="#f59e0b"
                       gradientStopColor="#d97706"
                       reverse
+                      disabled={uploadState === 'scanning'}
                     />
                     <AnimatedBeam
                       containerRef={containerRef}
@@ -562,6 +1079,7 @@ export function FileScanner() {
                       gradientStartColor="#f43f5e"
                       gradientStopColor="#e11d48"
                       reverse
+                      disabled={uploadState === 'scanning'}
                     />
                   </div>
                 </div>
