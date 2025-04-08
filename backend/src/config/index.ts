@@ -5,6 +5,7 @@ dotenv.config();
 
 // API Keys
 export const VIRUSTOTAL_API_KEY = process.env.VIRUSTOTAL_API_KEY;
+export const VT_API_KEY = VIRUSTOTAL_API_KEY; // Alias for consistency
 export const VT_API_URL = 'https://www.virustotal.com/api/v3';
 
 // Database Configuration
