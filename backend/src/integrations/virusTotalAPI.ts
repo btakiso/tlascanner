@@ -2,6 +2,9 @@ import axios, { AxiosError } from 'axios';
 import { APIError } from '../types/errors';
 import { APIResponse, CommunityComment, CommunityVote, VTAPIResponse } from '../types/urlScan';
 import { VT_API_URL } from '../config';
+import FormData = require('form-data');
+import * as fs from 'fs';
+import * as crypto from 'crypto';
 
 export class VirusTotalAPI {
     private apiKey: string;
@@ -211,6 +214,152 @@ export class VirusTotalAPI {
                     self: ''
                 }
             };
+        }
+    }
+
+    /**
+     * Calculate file hashes (MD5, SHA-1, SHA-256)
+     * @param filePath Path to the file
+     * @returns Object containing file hashes
+     */
+    async calculateFileHashes(filePath: string): Promise<{ md5: string; sha1: string; sha256: string }> {
+        return new Promise((resolve, reject) => {
+            try {
+                const fileBuffer = fs.readFileSync(filePath);
+                
+                const md5Hash = crypto.createHash('md5').update(fileBuffer).digest('hex');
+                const sha1Hash = crypto.createHash('sha1').update(fileBuffer).digest('hex');
+                const sha256Hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+                
+                resolve({
+                    md5: md5Hash,
+                    sha1: sha1Hash,
+                    sha256: sha256Hash
+                });
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    /**
+     * Check if a file has been previously scanned using its hash
+     * @param hash File hash (SHA-256, SHA-1, or MD5)
+     * @returns Scan report if available
+     */
+    async getFileReportByHash(hash: string): Promise<any> {
+        try {
+            const response = await axios.get(
+                `${this.baseURL}/files/${hash}`,
+                { headers: this.getHeaders() }
+            );
+            return response.data;
+        } catch (error) {
+            if (error instanceof AxiosError && error.response?.status === 404) {
+                // File not found in VirusTotal database
+                return null;
+            }
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Upload a file to VirusTotal for scanning
+     * @param filePath Path to the file to be scanned
+     * @returns Upload response with analysis ID
+     */
+    async uploadFile(filePath: string): Promise<any> {
+        try {
+            // Create form data with the file
+            const formData = new FormData();
+            const fileStream = fs.createReadStream(filePath);
+            formData.append('file', fileStream);
+            
+            // Custom headers for form data
+            const headers = {
+                ...formData.getHeaders(),
+                'x-apikey': this.apiKey
+            };
+            
+            // Upload the file
+            const response = await axios.post(
+                `${this.baseURL}/files`,
+                formData,
+                { headers }
+            );
+            
+            return response.data;
+        } catch (error) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Upload a file using a buffer instead of a file path
+     * @param fileBuffer Buffer containing the file data
+     * @param fileName Original file name
+     * @returns Upload response with analysis ID
+     */
+    async uploadFileBuffer(fileBuffer: Buffer, fileName: string): Promise<any> {
+        try {
+            // Create form data with the file buffer
+            const formData = new FormData();
+            formData.append('file', fileBuffer, { filename: fileName });
+            
+            // Custom headers for form data
+            const headers = {
+                ...formData.getHeaders(),
+                'x-apikey': this.apiKey
+            };
+            
+            // Upload the file
+            const response = await axios.post(
+                `${this.baseURL}/files`,
+                formData,
+                { headers }
+            );
+            
+            return response.data;
+        } catch (error) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Get the analysis results for a file scan
+     * @param id Analysis ID returned from file upload
+     * @returns Analysis results
+     */
+    async getFileAnalysisResults(id: string): Promise<any> {
+        try {
+            const response = await axios.get(
+                `${this.baseURL}/analyses/${id}`,
+                { headers: this.getHeaders() }
+            );
+            return response.data;
+        } catch (error) {
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Get file behavior report (sandbox analysis)
+     * @param hash File hash (SHA-256, SHA-1, or MD5)
+     * @returns Behavior report if available
+     */
+    async getFileBehaviorReport(hash: string): Promise<any> {
+        try {
+            const response = await axios.get(
+                `${this.baseURL}/files/${hash}/behaviours`,
+                { headers: this.getHeaders() }
+            );
+            return response.data;
+        } catch (error) {
+            if (error instanceof AxiosError && error.response?.status === 404) {
+                // Behavior report not available
+                return null;
+            }
+            throw this.handleError(error);
         }
     }
 
