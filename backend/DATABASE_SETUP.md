@@ -12,7 +12,8 @@ This guide will help you set up the PostgreSQL database required for the TLA Sca
 2. **Environment Configuration**
    - Copy `.env.example` to `.env` in the backend directory
    - Update the database credentials in the `.env` file:
-     ```
+
+   ```P
      PGUSER=postgres
      PGPASSWORD=your_password
      PGHOST=localhost
@@ -37,11 +38,13 @@ Run the setup script from the backend directory:
 If the automatic setup fails, you can set up the database manually:
 
 1. **Create the database**:
+
    ```sql
    CREATE DATABASE tlascanner WITH ENCODING 'UTF8';
    ```
 
 2. **Install required extensions**:
+
    ```sql
    \c tlascanner
    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -49,7 +52,8 @@ If the automatic setup fails, you can set up the database manually:
    ```
 
 3. **Initialize the schema**:
-   ```
+
+   ```P
    psql -d tlascanner -f src/config/init.sql
    ```
 
@@ -82,11 +86,13 @@ CREATE DATABASE tlascanner WITH ENCODING 'UTF8' LC_COLLATE='C' LC_CTYPE='C';
 If you encounter permission issues:
 
 1. Ensure your PostgreSQL user has the necessary privileges:
+
    ```sql
    ALTER USER postgres WITH SUPERUSER;
    ```
 
 2. If using a different user, grant the necessary permissions:
+
    ```sql
    CREATE USER your_username WITH PASSWORD 'your_password';
    ALTER USER your_username WITH SUPERUSER;
