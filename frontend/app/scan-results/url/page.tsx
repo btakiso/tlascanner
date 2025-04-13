@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Shield, ShieldAlert, Globe, Link2, AlertTriangle, CheckCircle, AlertOctagon, Info, Users, HelpCircle, Tag, FileText, Clock, Activity, Star, ThumbsUp, MessageSquare } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { Shield, ShieldAlert, Globe, Link2, AlertTriangle, CheckCircle, AlertOctagon, Info, Users, HelpCircle, Tag, FileText, Clock, Activity, Star, ThumbsUp, MessageSquare, ArrowLeft } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { motion, AnimatePresence } from "framer-motion";
@@ -53,6 +54,7 @@ interface VendorFilters {
 
 export default function URLScanResults() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [scanResult, setScanResult] = useState<URLScanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,12 +66,20 @@ export default function URLScanResults() {
   
   const scanId = searchParams.get('scanId');
 
+  const [isPending, setIsPending] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  
+  const handleBackClick = () => {
+    router.push('/#url-scanner');
+  };
+
   useEffect(() => {
     const fetchScanResults = async () => {
       if (!scanId) return;
       
       setIsLoading(true);
       setError(null);
+      setIsPending(false);
       
       try {
         const response = await fetch(`${config.API_URL}${config.SCAN_ENDPOINTS.RESULTS.URL}/${scanId}`, {
@@ -85,8 +95,15 @@ export default function URLScanResults() {
         }
 
         const data: URLScanResponse = await response.json();
+        
         if (data.status === 'success' && data.data?.scanId && data.data?.url) {
           setScanResult(data);
+          setIsPending(false);
+        } else if (data.status === 'pending') {
+          setScanResult(data);
+          setIsPending(true);
+          // Set a timeout to retry after 10 seconds
+          setTimeout(() => setRetryCount(prev => prev + 1), 10000);
         } else {
           throw new Error('Invalid scan result format');
         }
@@ -98,7 +115,7 @@ export default function URLScanResults() {
     };
 
     fetchScanResults();
-  }, [scanId]);
+  }, [scanId, retryCount]); // Add retryCount to dependencies to trigger re-fetch
 
   const getThreatOrder = (category: string): number => {
     const threatOrder: Record<VendorCategory, number> = {
@@ -339,10 +356,76 @@ export default function URLScanResults() {
       </div>
     );
   }
+  
+  // Pending state
+  if (isPending && scanResult) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card className="w-full max-w-4xl mx-auto">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-yellow-500" />
+              URL Scan In Progress
+            </CardTitle>
+            <CardDescription>
+              Scanning: {scanResult.data.url}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert className="mb-6 bg-yellow-50 border-yellow-200">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              <AlertTitle>Scan is still processing</AlertTitle>
+              <AlertDescription>
+                {scanResult.data.message || 'Your URL scan is currently being processed by VirusTotal. This can take a few minutes for new URLs.'}
+                <div className="mt-4 flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse"></div>
+                  <span className="text-sm text-muted-foreground">Automatically checking for results every 10 seconds...</span>
+                </div>
+              </AlertDescription>
+            </Alert>
+            
+            <div className="flex flex-col items-center justify-center py-6 space-y-4">
+              <div className="text-center max-w-md">
+                <h3 className="text-lg font-medium mb-2">Why does this happen?</h3>
+                <p className="text-muted-foreground text-sm">
+                  When scanning a URL that hasn't been analyzed before, VirusTotal needs time to process it through multiple security engines. 
+                  This typically takes 1-3 minutes, but can be longer for complex websites.
+                </p>
+              </div>
+              
+              <button 
+                onClick={() => setRetryCount(prev => prev + 1)}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              >
+                Check Now
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
       <div className="container mx-auto p-6 space-y-6 max-w-7xl">
+        {/* Back Button */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="mb-4"
+        >
+          <Button
+            onClick={handleBackClick}
+            variant="outline"
+            className="flex items-center gap-2 hover:bg-background/80 transition-colors border rounded-md px-3 py-2 shadow-sm"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Scanner</span>
+          </Button>
+        </motion.div>
+        
         {/* Threat Alert Section */}
         <AnimatePresence mode="sync">
           {threatLevel === "high" && (

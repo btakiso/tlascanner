@@ -1,10 +1,13 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useState, useEffect, useRef } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
+import { io, Socket } from "socket.io-client"
 import { useTheme } from "next-themes"
+import { useToast } from "@/components/ui/use-toast"
 import { 
+  Activity,
   AlertTriangle, 
   Check, 
   Copy, 
@@ -16,7 +19,8 @@ import {
   ShieldAlert,
   AlertCircle,
   HelpCircle,
-  Video 
+  Video,
+  ArrowLeft
 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -28,7 +32,7 @@ import { AnimatedDonut } from "@/components/ui/animated-donut"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import { checkFileScanStatus, getFileScanById } from "@/services/fileScanApi"
-import { useToast } from "@/components/ui/use-toast";
+// useToast already imported above
 import { Pie } from 'react-chartjs-2'
 import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend, Colors } from 'chart.js'
 
@@ -143,17 +147,345 @@ const alertStyles: Record<string, string> = {
 
 export default function FileScanResults() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [threatLevel, setThreatLevel] = useState<string>("safe");
   const [copiedItems, setCopiedItems] = useState<Record<string, boolean>>({});
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  
+  const handleBackClick = () => {
+    router.push('/#file-scanner');
+  };
   const [scanStatus, setScanStatus] = useState<string>("pending");
+  const [socketStatus, setSocketStatus] = useState<string>("disconnected");
   const { toast } = useToast();
+  
+  // Function to test WebSocket connection independently
+  const testWebSocketConnection = () => {
+    console.log('Testing WebSocket connection independently...');
+    
+    // Get the base URL from the current window location
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}`;
+    
+    console.log('Test WebSocket URL:', wsUrl);
+    
+    // Create test connection
+    const testSocket = io(wsUrl, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 20000
+    });
+    
+    // Log all events
+    testSocket.onAny((event, ...args) => {
+      console.log(`Test socket event '${event}' received:`, args);
+    });
+    
+    // Handle connection
+    testSocket.on('connect', () => {
+      console.log('Test WebSocket connected with ID:', testSocket.id);
+      
+      // Send a ping to test bidirectional communication
+      testSocket.emit('ping', (response: any) => {
+        console.log('Received pong response:', response);
+        
+        // Close test connection after successful ping
+        setTimeout(() => {
+          testSocket.disconnect();
+          console.log('Test WebSocket disconnected');
+        }, 2000);
+      });
+    });
+    
+    // Handle errors
+    testSocket.on('connect_error', (error) => {
+      console.error('Test WebSocket connection error:', error);
+    });
+  };
 
   useEffect(() => {
-    const fetchResults = async () => {
+    // Process scan results (used for both initial fetch and WebSocket updates)
+    const processResults = (result: any) => {
+      // Calculate total from individual counts
+      const totalEngines = 
+        (result.stats?.malicious || 0) + 
+        (result.stats?.suspicious || 0) + 
+        (result.stats?.harmless || 0) + 
+        (result.stats?.undetected || 0);
+      
+      setScanResult({
+        fileMetadata: {
+          name: result.fileName || "Unknown file",
+          type: result.fileType || "application/octet-stream",
+          size: result.fileSize ? String(result.fileSize) : "Unknown",
+          sha256: result.hash?.sha256 || "",
+          md5: result.hash?.md5 || "",
+          sha1: result.hash?.sha1 || "",
+          firstSeen: result.scanDate || new Date().toISOString(),
+          lastSeen: result.scanDate || new Date().toISOString(),
+          createdAt: result.scanDate,
+        },
+        stats: {
+          malicious: result.stats?.malicious || 0,
+          suspicious: result.stats?.suspicious || 0,
+          harmless: result.stats?.harmless || 0,
+          undetected: result.stats?.undetected || 0,
+          total: totalEngines
+        },
+        lastAnalysisResults: Object.entries(result.results || {}).map(([engine, data]: [string, any]) => ({
+          engine: engine,
+          category: data.category || "unknown",
+          result: data.result || "",
+          method: data.method || "unknown",
+          engineVersion: data.engine_version || "N/A",
+          engineUpdate: data.engine_update || "N/A",
+          signatureName: data.result
+        })),
+        signatures: result.signatures || [],
+        reputation: result.reputation || 0
+      });
+      
+      // Determine threat level
+      if (result.stats?.malicious > 0) {
+        setThreatLevel("critical");
+      } else if (result.stats?.suspicious > 0) {
+        setThreatLevel("warning");
+      } else if (result.status === 'completed') {
+        setThreatLevel("safe");
+      } else {
+        setThreatLevel("scanning");
+      }
+      
+      // Update scan status
+      setScanStatus(result.status);
+      console.log(`Scan status updated to: ${result.status}`);
+      
+      // Set loading to false once we have results
+      setIsLoading(false);
+      
+      // Show toast notification for status updates
+      if (result.status === 'completed') {
+        toast({
+          title: "Scan Completed",
+          description: "File scan has been completed",
+          variant: "default"
+        });
+      } else if (result.status === 'scanning') {
+        toast({
+          title: "Scan In Progress",
+          description: "File is being scanned",
+          variant: "default"
+        });
+      }
+    };
+    
+    // Connect to WebSocket and subscribe to scan updates
+    const connectToWebSocket = (scanId: string) => {
+      // Close existing connection if any
+      if (socketRef.current) {
+        console.log('Closing existing WebSocket connection');
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      
+      console.log('Creating new WebSocket connection for scan ID:', scanId);
+      
+      // Get the base URL from the current window location
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}`;
+      
+      console.log('WebSocket URL:', wsUrl);
+      
+      try {
+        console.log('Creating Socket.IO connection with URL:', wsUrl);
+        
+        // Create new connection with explicit options
+        const socket = io(wsUrl, {
+          transports: ['websocket', 'polling'],
+          reconnectionAttempts: 10,
+          reconnectionDelay: 1000,
+          timeout: 30000,
+          forceNew: true,
+          autoConnect: true,
+          withCredentials: false,
+          path: '/socket.io'
+        });
+        
+        socketRef.current = socket;
+        
+        // Debug all socket events
+        socket.onAny((event, ...args) => {
+          console.log(`Socket event '${event}' received:`, args);
+        });
+        
+        // Handle connection events
+        socket.on('connect', () => {
+          console.log('WebSocket connected with ID:', socket.id);
+          setSocketStatus('connected');
+          
+          // Important: Subscribe to scan updates with the correct scan ID
+          console.log('Subscribing to scan updates for scan ID:', scanId);
+          socket.emit('subscribe', { scanId: scanId });
+          
+          // Log socket connection details
+          console.log('Socket connection details:', {
+            id: socket.id,
+            connected: socket.connected,
+            disconnected: socket.disconnected
+          });
+          
+          // Listen for subscription confirmation
+          socket.on('subscribed', (data: any) => {
+            console.log('Subscription confirmed:', data);
+            setSocketStatus('connected');
+            toast({
+              title: "WebSocket Connected",
+              description: `Connected to real-time updates! Room size: ${data.roomSize || 1}`,
+              variant: "default"
+            });
+          });
+
+          // Listen for subscription test messages
+          socket.on('subscription-test', (data: any) => {
+            console.log('Subscription test received:', data);
+            toast({
+              title: "WebSocket Test",
+              description: "WebSocket connection verified with test message",
+              variant: "default"
+            });
+          });
+
+          // Verify subscription by pinging the server
+          setTimeout(() => {
+            console.log('Sending ping to server...');
+            socket.emit('ping', (response: any) => {
+              console.log('Ping response:', response);
+              if (socketStatus !== 'connected') {
+                setSocketStatus('connected');
+                toast({
+                  title: "WebSocket Connected",
+                  description: "Connected to real-time updates!",
+                  variant: "default"
+                });
+              }
+            });
+          }, 1000);
+          
+          // Check WebSocket server status via API
+          fetch('/api/health/socket')
+            .then(res => res.json())
+            .then(data => {
+              console.log('WebSocket server status:', data);
+            })
+            .catch(err => {
+              console.error('Error checking WebSocket server status:', err);
+            });
+          
+          // Show connection toast
+          toast({
+            title: "WebSocket Connected",
+            description: `Connected with ID: ${socket.id}`,
+            variant: "default"
+          });
+        });
+        
+        // Handle welcome message
+        socket.on('welcome', (data) => {
+          console.log('Received welcome message:', data);
+        });
+        
+        // Handle subscription confirmation
+        socket.on('subscribed', (data) => {
+          console.log('Successfully subscribed to scan:', data);
+          toast({
+            title: "Subscribed to Updates",
+            description: `Subscribed to scan: ${data.scanId}`,
+            variant: "default"
+          });
+        });
+        
+        // Handle scan updates
+        socket.on('scanUpdate', (data) => {
+          console.log('Received scan update:', data);
+          if (data.scanId === scanId) {
+            console.log('Processing scan update for current scan');
+            processResults(data.results);
+            
+            // If scan is completed, close the WebSocket connection
+            if (data.status === 'completed') {
+              console.log('Scan completed, closing WebSocket connection');
+              socket.disconnect();
+              socketRef.current = null;
+            }
+          } else {
+            console.log('Received update for different scan ID, ignoring');
+          }
+        });
+        
+        // Handle errors
+        socket.on('error', (error) => {
+          console.error('WebSocket error:', error);
+          toast({
+            title: "WebSocket Error",
+            description: error.toString(),
+            variant: "destructive"
+          });
+        });
+        
+        // Handle connection errors
+        socket.on('connect_error', (error) => {
+          console.error('WebSocket connection error:', error);
+          setSocketStatus('disconnected');
+          toast({
+            title: "Connection Error",
+            description: error.message,
+            variant: "destructive"
+          });
+        });
+        
+        // Handle disconnection
+        socket.on('disconnect', (reason) => {
+          console.log('WebSocket disconnected, reason:', reason);
+          setSocketStatus('disconnected');
+          
+          // Show disconnection toast
+          toast({
+            title: "WebSocket Disconnected",
+            description: `Reason: ${reason}`,
+            variant: "destructive"
+          });
+          
+          // Attempt to reconnect if not completed
+          if (scanStatus !== 'completed' && reason !== 'io client disconnect') {
+            console.log('Attempting to reconnect...');
+            setTimeout(() => {
+              connectToWebSocket(scanId);
+            }, 5000);
+          }
+        });
+        
+        // Return the socket instance
+        return socket;
+      } catch (error) {
+        console.error('Error creating WebSocket connection:', error);
+        toast({
+          title: "WebSocket Error",
+          description: "Failed to create WebSocket connection",
+          variant: "destructive"
+        });
+        return null;
+      }
+    };
+    
+
+    
+    const fetchInitialResults = async () => {
       try {
         const scanId = searchParams.get('scanId');
         if (!scanId) {
@@ -166,102 +498,25 @@ export default function FileScanResults() {
           return;
         }
 
+        console.log('Fetching initial results for scan ID:', scanId);
+        
         // Check scan status
         const statusResult = await checkFileScanStatus(scanId);
+        console.log('Initial scan status:', statusResult);
         
+        // Process the initial results
+        processResults(statusResult);
+        
+        // Always connect to WebSocket for real-time updates
+        // This ensures we get updates even if the scan completes after our initial check
+        connectToWebSocket(scanId);
+        
+        // If scan is already completed, we don't need to poll
         if (statusResult.status === 'completed') {
-          // Get full scan results
-          const result = await getFileScanById(statusResult.scanId);
-          
-          // Calculate total from individual counts
-          const totalEngines = 
-            (result.stats?.malicious || 0) + 
-            (result.stats?.suspicious || 0) + 
-            (result.stats?.harmless || 0) + 
-            (result.stats?.undetected || 0);
-          
-          setScanResult({
-            fileMetadata: {
-              name: result.fileName || "Unknown file",
-              type: result.fileType || "application/octet-stream",
-              size: result.fileSize ? String(result.fileSize) : "Unknown",
-              sha256: result.hash?.sha256 || "",
-              md5: result.hash?.md5 || "",
-              sha1: result.hash?.sha1 || "",
-              firstSeen: result.scanDate || new Date().toISOString(),
-              lastSeen: result.scanDate || new Date().toISOString(),
-              createdAt: result.scanDate,
-            },
-            stats: {
-              malicious: result.stats?.malicious || 0,
-              suspicious: result.stats?.suspicious || 0,
-              harmless: result.stats?.harmless || 0,
-              undetected: result.stats?.undetected || 0,
-              total: totalEngines
-            },
-            lastAnalysisResults: Object.entries(result.results || {}).map(([engine, data]: [string, any]) => ({
-              engine: engine,
-              category: data.category || "unknown",
-              result: data.result || "",
-              method: data.method || "unknown",
-              engineVersion: data.engine_version || "N/A",
-              engineUpdate: data.engine_update || "N/A",
-              signatureName: data.result
-            })),
-            signatures: result.signatures || [],
-            reputation: result.reputation || 0
-          });
-          
-          // Determine threat level
-          if (result.stats?.malicious > 0) {
-            setThreatLevel("critical");
-          } else if (result.stats?.suspicious > 0) {
-            setThreatLevel("warning");
-          } else {
-            setThreatLevel("safe");
-          }
-          
-          // Clear polling if it exists
-          if (pollingInterval) {
-            clearInterval(pollingInterval);
-            setPollingInterval(null);
-          }
+          console.log('Scan already completed, no need for real-time updates');
         } else {
-          // If scan is still in progress, set up polling
-          if (!pollingInterval) {
-            const interval = setInterval(fetchResults, 5000); // Poll every 5 seconds
-            setPollingInterval(interval);
-          }
-          
-          // Show a loading state with some basic info
-          setScanResult({
-            fileMetadata: {
-              name: searchParams.get('file') || "Unknown file",
-              type: "Scanning...",
-              size: "Calculating...",
-              sha256: "Calculating...",
-              md5: "Calculating...",
-              sha1: "Calculating...",
-              firstSeen: new Date().toISOString(),
-              lastSeen: new Date().toISOString()
-            },
-            stats: {
-              malicious: 0,
-              suspicious: 0,
-              harmless: 0,
-              undetected: 0,
-              total: 0
-            },
-            lastAnalysisResults: [],
-            signatures: [],
-            reputation: 0
-          });
-          
-          setThreatLevel("scanning");
-          setScanStatus(statusResult.status);
+          console.log('Scan in progress, waiting for real-time updates');
         }
-
-        setIsLoading(false);
       } catch (error) {
         console.error("Error fetching scan results:", error);
         toast({
@@ -270,21 +525,16 @@ export default function FileScanResults() {
         });
         setIsLoading(false);
         setError("Failed to fetch scan results");
-        
-        // Clear polling if it exists
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-          setPollingInterval(null);
-        }
       }
     };
 
-    fetchResults();
+    fetchInitialResults();
     
-    // Cleanup polling on unmount
+    // Cleanup WebSocket connection on unmount
     return () => {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
       }
     };
   }, [searchParams]);
@@ -415,13 +665,30 @@ export default function FileScanResults() {
   };
 
   return (
-    <div className="container mx-auto p-4 space-y-4">
+    <div className="container mx-auto px-4 py-6 max-w-7xl relative">
+      {/* Back Button - positioned for better alignment */}
+      <div className="max-w-7xl mx-auto mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Button
+            onClick={handleBackClick}
+            variant="outline"
+            className="flex items-center gap-2 hover:bg-background/80 transition-colors border rounded-md px-3 py-2 shadow-sm"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Scanner</span>
+          </Button>
+        </motion.div>
+      </div>
+      
       {/* Header Section */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">File Analysis Results</h1>
-        <Button variant="outline" onClick={() => window.history.back()}>
-          Back to Scan
-        </Button>
+        
+
       </div>
 
       {/* Alert Banner */}

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
-import { AlertTriangle, ExternalLink, Shield, Terminal, Bug, FileCode, Database, Loader2, Search, ChevronRight, ChevronsLeft, ChevronLeft, ChevronsRight, AlertCircle } from "lucide-react";
+import { AlertTriangle, ExternalLink, Shield, Terminal, Bug, FileCode, Database, Loader2, Search, ChevronRight, ChevronsLeft, ChevronLeft, ChevronsRight, AlertCircle, ArrowLeft } from "lucide-react";
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from "react";
 import { AnimatedSeverityScore } from "@/components/ui/animated-severity-score";
@@ -55,6 +55,10 @@ export default function CVEResultPage() {
   const [currentPage, setCurrentPage] = useState(0);
   // Fixed value instead of state variable
   const resultsPerPage = 10;
+  
+  const handleBackClick = () => {
+    router.push('/#cve-lookup');
+  };
   
   useEffect(() => {
     const fetchData = async () => {
@@ -114,7 +118,25 @@ export default function CVEResultPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-16 max-w-7xl relative">
+      <div className="container mx-auto px-4 py-6 max-w-7xl relative">
+        {/* Back Button - positioned for better alignment */}
+        <div className="max-w-7xl mx-auto mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Button
+              onClick={handleBackClick}
+              variant="outline"
+              className="flex items-center gap-2 hover:bg-background/80 transition-colors border rounded-md px-3 py-2 shadow-sm"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Scanner</span>
+            </Button>
+          </motion.div>
+        </div>
+        
         <div className="bg-card rounded-lg shadow-sm p-12 border">
           <div className="flex flex-col items-center justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -128,7 +150,25 @@ export default function CVEResultPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        {/* Back Button - positioned for better alignment */}
+        <div className="max-w-7xl mx-auto mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Button
+              onClick={handleBackClick}
+              variant="outline"
+              className="flex items-center gap-2 hover:bg-background/80 transition-colors border rounded-md px-3 py-2 shadow-sm"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Scanner</span>
+            </Button>
+          </motion.div>
+        </div>
+        
         <div className="bg-card rounded-lg shadow-sm p-6 border border-red-500/20">
           <div className="flex flex-col items-center text-center">
             <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
@@ -152,7 +192,25 @@ export default function CVEResultPage() {
   // Show search results if available
   if (searchResults) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-7xl relative">
+      <div className="container mx-auto px-4 py-6 max-w-7xl relative">
+        {/* Back Button - positioned for better alignment */}
+        <div className="max-w-7xl mx-auto mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Button
+              onClick={handleBackClick}
+              variant="outline"
+              className="flex items-center gap-2 hover:bg-background/80 transition-colors border rounded-md px-3 py-2 shadow-sm"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Scanner</span>
+            </Button>
+          </motion.div>
+        </div>
+        
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -603,7 +661,25 @@ export default function CVEResultPage() {
   // If no CVE data is available
   if (!cveData) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        {/* Back Button - positioned for better alignment */}
+        <div className="max-w-7xl mx-auto mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Button
+              onClick={handleBackClick}
+              variant="outline"
+              className="flex items-center gap-2 hover:bg-background/80 transition-colors border rounded-md px-3 py-2 shadow-sm"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Scanner</span>
+            </Button>
+          </motion.div>
+        </div>
+        
         <div className="bg-card rounded-lg shadow-sm p-8 border">
           <div className="flex flex-col items-center text-center">
             <Shield className="h-12 w-12 text-gray-400 mb-4" />
@@ -626,7 +702,25 @@ export default function CVEResultPage() {
   // Check if we have valid data structure
   if (!cveData.descriptions || !Array.isArray(cveData.descriptions)) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-7xl relative">
+      <div className="container mx-auto px-4 py-6 max-w-7xl relative">
+        {/* Back Button - positioned for better alignment */}
+        <div className="max-w-7xl mx-auto mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Button
+              onClick={handleBackClick}
+              variant="outline"
+              className="flex items-center gap-2 hover:bg-background/80 transition-colors border rounded-md px-3 py-2 shadow-sm"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Scanner</span>
+            </Button>
+          </motion.div>
+        </div>
+        
         <div className="bg-card rounded-lg shadow-sm p-6 border border-red-500/20 relative">
           <div className="flex flex-col items-center text-center">
             <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
@@ -686,16 +780,24 @@ export default function CVEResultPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="mb-6">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="mb-4 flex items-center"
-          onClick={() => window.history.back()}
+      {/* Back Button */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="mb-4"
+      >
+        <Button
+          onClick={handleBackClick}
+          variant="ghost"
+          className="flex items-center gap-2 hover:bg-background/80 transition-colors"
         >
-          <ChevronLeft className="h-4 w-4 mr-1" />
-          <span>Back to Search</span>
+          <ArrowLeft className="h-4 w-4" />
+          <span>Back to Scanner</span>
         </Button>
+      </motion.div>
+      
+      <div className="mb-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">{cveData.id}</h1>
