@@ -41,8 +41,16 @@ export function URLScanner() {
     // Remove leading/trailing whitespace
     let formattedUrl = inputUrl.trim();
     
-    // Remove any existing protocol
-    formattedUrl = formattedUrl.replace(/^(https?:\/\/)/, '');
+    // Check if URL already has a protocol
+    const hasProtocol = /^(https?:\/\/)/.test(formattedUrl);
+    let protocol = 'https://'; // Default protocol
+    
+    if (hasProtocol) {
+      // Extract the existing protocol
+      protocol = formattedUrl.match(/^(https?:\/\/)/)?.[0] || 'https://';
+      // Remove the protocol temporarily for validation
+      formattedUrl = formattedUrl.replace(/^(https?:\/\/)/, '');
+    }
     
     // Remove trailing slashes and spaces
     formattedUrl = formattedUrl.replace(/[\s\/]+$/, '');
@@ -53,12 +61,12 @@ export function URLScanner() {
     }
 
     // Check length before protocol
-    if (formattedUrl.length > 2048 - 8) { // 8 for https://
+    if (formattedUrl.length > 2048 - protocol.length) {
       throw new Error('URL is too long (maximum 2048 characters)');
     }
     
-    // Add https:// protocol
-    formattedUrl = `https://${formattedUrl}`;
+    // Add the original protocol or default to https://
+    formattedUrl = `${protocol}${formattedUrl}`;
     
     return formattedUrl;
   };
@@ -76,6 +84,15 @@ export function URLScanner() {
     // Reset scan state when URL changes
     if (scanState !== 'idle') {
       setScanState('idle');
+    }
+  };
+  
+  // Handle key press in the input field
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // If Enter key is pressed, trigger the scan
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleScan();
     }
   };
 
@@ -388,6 +405,7 @@ export function URLScanner() {
                         type="url"
                         value={url}
                         onChange={handleUrlChange}
+                        onKeyPress={handleKeyPress}
                         placeholder="Enter URL to scan (e.g., example.com)"
                         className="flex-1 h-12 px-4 bg-transparent border-0 ring-2 ring-border/50 focus-visible:ring-2 focus-visible:ring-[#0EA5E9] rounded-xl transition-shadow duration-200"
                       />
