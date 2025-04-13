@@ -265,7 +265,7 @@ export class URLScanService {
     }
   }
 
-  public async scanURL(url: string): Promise<URLScanResult> {
+  public async scanURL(url: string, maxRetries: number = 5, retryDelay: number = 3000): Promise<URLScanResult> {
     try {
       // Sanitize the URL
       const sanitizedUrl = URLSanitizer.sanitize(url);
@@ -278,51 +278,111 @@ export class URLScanService {
 
       // Submit URL for scanning
       const scanId = await this.submitURL(sanitizedUrl);
+      
+      // Poll for results with exponential backoff
+      let retries = 0;
+      let lastError: any = null;
+      
+      while (retries < maxRetries) {
+        try {
+          // Wait before trying to get results
+          await new Promise(resolve => setTimeout(resolve, retryDelay * Math.pow(1.5, retries)));
+          
+          // Try to get analysis results
+          const vtReport = await this.getAnalysisResults(scanId);
+          const communityFeedback = await this.getCommunityFeedback(scanId);
+          
+          const { attributes } = vtReport.data;
+          
+          // Check if the scan is actually complete
+          if (!attributes.last_analysis_stats) {
+            throw new Error('Scan results not ready yet');
+          }
+          
+          const results: URLScanResult = {
+            status: 'success',
+            data: {
+              scanId,
+              url: attributes.url,
+              domain: attributes.domain || '',
+              stats: attributes.last_analysis_stats,
+              lastAnalysisResults: Object.entries(attributes.last_analysis_results).map(([engine, result]) => ({
+                engine,
+                category: result.category,
+                result: result.result,
+                method: result.method
+              })),
+              communityFeedback: {
+                comments: communityFeedback?.comments || [],
+                votes: communityFeedback?.votes || [],
+                totalVotes: communityFeedback?.totalVotes || { harmless: 0, malicious: 0 },
+                totalComments: communityFeedback?.totalComments || 0,
+                totalVotesCount: communityFeedback?.totalVotesCount || 0
+              },
+              scanDate: attributes.last_analysis_date,
+              firstSubmissionDate: attributes.first_submission_date,
+              lastSubmissionDate: attributes.last_submission_date,
+              httpResponse: {
+                finalUrl: attributes.last_http_response?.url || '',
+                ipAddress: attributes.last_http_response?.ip_address || '',
+                statusCode: attributes.last_http_response?.status_code || 0,
+                bodyLength: attributes.last_http_response?.content_length || 0,
+                bodySha256: attributes.last_http_response?.sha256 || '',
+                headers: attributes.last_http_response?.headers || {},
+                redirectionChain: attributes.last_http_response?.redirect_chain || []
+              }
+            }
+          };
 
-      // Get analysis results
-      const vtReport = await this.getAnalysisResults(scanId);
-      const communityFeedback = await this.getCommunityFeedback(scanId);
+          // Save results to database
+          await this.saveScanResults(sanitizedUrl, scanId, results);
 
-      const { attributes } = vtReport.data;
-      const results: URLScanResult = {
-        status: 'success',
+          return results;
+        } catch (error) {
+          lastError = error;
+          console.log(`Attempt ${retries + 1}/${maxRetries} failed, retrying...`);
+          retries++;
+        }
+      }
+      
+      // If we've reached here, all retries failed
+      // Return a pending status to the client
+      const pendingResult: URLScanResult = {
+        status: 'pending',
         data: {
           scanId,
-          url: attributes.url,
-          domain: attributes.domain || '',
-          stats: attributes.last_analysis_stats,
-          lastAnalysisResults: Object.entries(attributes.last_analysis_results).map(([engine, result]) => ({
-            engine,
-            category: result.category,
-            result: result.result,
-            method: result.method
-          })),
+          url: sanitizedUrl,
+          domain: new URL(sanitizedUrl).hostname,
+          message: 'URL scan is in progress. Please check back later for results.',
+          stats: { harmless: 0, malicious: 0, suspicious: 0, undetected: 0, timeout: 0 },
+          lastAnalysisResults: [],
           communityFeedback: {
-            comments: communityFeedback?.comments || [],
-            votes: communityFeedback?.votes || [],
-            totalVotes: communityFeedback?.totalVotes || { harmless: 0, malicious: 0 },
-            totalComments: communityFeedback?.totalComments || 0,
-            totalVotesCount: communityFeedback?.totalVotesCount || 0
+            comments: [],
+            votes: [],
+            totalVotes: { harmless: 0, malicious: 0 },
+            totalComments: 0,
+            totalVotesCount: 0
           },
-          scanDate: attributes.last_analysis_date,
-          firstSubmissionDate: attributes.first_submission_date,
-          lastSubmissionDate: attributes.last_submission_date,
+          scanDate: Math.floor(Date.now() / 1000).toString(),
+          firstSubmissionDate: '',
+          lastSubmissionDate: '',
           httpResponse: {
-            finalUrl: attributes.last_http_response?.url || '',
-            ipAddress: attributes.last_http_response?.ip_address || '',
-            statusCode: attributes.last_http_response?.status_code || 0,
-            bodyLength: attributes.last_http_response?.content_length || 0,
-            bodySha256: attributes.last_http_response?.sha256 || '',
-            headers: attributes.last_http_response?.headers || {},
-            redirectionChain: attributes.last_http_response?.redirect_chain || []
+            finalUrl: '',
+            ipAddress: '',
+            statusCode: 0,
+            bodyLength: 0,
+            bodySha256: '',
+            headers: {},
+            redirectionChain: []
           }
         }
       };
-
-      // Save results to database
-      await this.saveScanResults(sanitizedUrl, scanId, results);
-
-      return results;
+      
+      // Save the pending status to database
+      await this.saveScanResults(sanitizedUrl, scanId, pendingResult);
+      
+      console.error('All retries failed for URL scan:', lastError);
+      return pendingResult;
     } catch (error) {
       console.error('Error scanning URL:', error);
       throw this.handleError(error);

@@ -5,6 +5,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
+import { io } from '../app';
+import { emitScanUpdate } from '../socket';
 
 export interface FileScanResult {
     id: string;
@@ -89,6 +91,13 @@ export class FileScanService {
             if (existingLocalReport) {
                 // Clean up temp file
                 await fs.promises.unlink(tempFilePath);
+                
+                // Emit WebSocket event for existing report
+                emitScanUpdate(io, existingLocalReport.scanId, {
+                    status: existingLocalReport.status,
+                    results: existingLocalReport
+                });
+                
                 return existingLocalReport;
             }
             
@@ -177,6 +186,17 @@ export class FileScanService {
             
             // Clean up temp file
             await fs.promises.unlink(tempFilePath);
+            
+            // Start background polling for scan results if status is pending
+            if (result.status === 'pending') {
+                this.startBackgroundPolling(result.scanId);
+            } else {
+                // Emit WebSocket event with the results
+                emitScanUpdate(io, result.scanId, {
+                    status: result.status,
+                    results: result
+                });
+            }
             
             return result;
         } catch (error) {
@@ -429,7 +449,17 @@ export class FileScanService {
             const analysisResults = await this.vtApi.getFileAnalysisResults(scanId);
             
             // Update the record with the latest results
-            return await this.updateScanResults(scanId, analysisResults);
+            const updatedResult = await this.updateScanResults(scanId, analysisResults);
+            
+            // Emit WebSocket event with the updated results
+            if (updatedResult) {
+                emitScanUpdate(io, scanId, {
+                    status: updatedResult.status,
+                    results: updatedResult
+                });
+            }
+            
+            return updatedResult;
         } catch (error) {
             console.error('Error checking scan status:', error);
             return null;
@@ -638,5 +668,216 @@ export class FileScanService {
             results: record.results,
             signatures: signatures
         };
+    }
+
+    /**
+     * Start background polling for scan results
+     * @param scanId The scan ID to poll for
+     */
+    private startBackgroundPolling(scanId: string): void {
+        console.log(`Starting background polling for scan ${scanId}`);
+        
+        // Initial delay before first check (2 seconds - reduced from 5)
+        const initialDelay = 2000;
+        
+        // Maximum number of retries
+        const maxRetries = 15; // Reduced from 24 to be more efficient
+        
+        // Start polling with true exponential backoff
+        this.pollWithBackoff(scanId, 0, initialDelay, maxRetries);
+        
+        // Also initiate a parallel check with VirusTotal's API
+        this.checkVirusTotalDirectly(scanId);
+    }
+    
+    /**
+     * Check VirusTotal API directly for faster results
+     * This is a parallel approach to complement the regular polling
+     */
+    private async checkVirusTotalDirectly(scanId: string): Promise<void> {
+        try {
+            console.log(`Initiating direct VirusTotal check for scan ${scanId}`);
+            
+            // Make a direct request to VirusTotal for the file report
+            const currentRecord = await this.getReportByScanId(scanId);
+            if (!currentRecord || !currentRecord.hash || !currentRecord.hash.sha256) {
+                console.log(`Cannot perform direct check for scan ${scanId}: missing hash`);
+                return;
+            }
+            
+            // Try to get the file report by hash (this might return results faster)
+            const fileReport = await this.vtApi.getFileReportByHash(currentRecord.hash.sha256);
+            if (fileReport && fileReport.data && fileReport.data.attributes) {
+                console.log(`Received direct file report for scan ${scanId}`);
+                
+                // Update the record with these results
+                const updatedResult = await this.updateScanResults(scanId, fileReport);
+                
+                // Emit WebSocket event with the updated results
+                if (updatedResult) {
+                    console.log(`Emitting WebSocket update from direct check for scan ${scanId}`);
+                    emitScanUpdate(io, scanId, {
+                        status: updatedResult.status,
+                        results: updatedResult
+                    });
+                }
+            } else {
+                console.log(`No direct results available yet for scan ${scanId}`);
+            }
+        } catch (error) {
+            console.error(`Error in direct VirusTotal check for scan ${scanId}:`, error);
+        }
+    }
+    
+    /**
+     * Poll for scan results with exponential backoff
+     * @param scanId The scan ID to poll for
+     * @param attempt Current attempt number
+     * @param delay Delay in milliseconds before next attempt
+     * @param maxRetries Maximum number of retry attempts
+     */
+    private pollWithBackoff(scanId: string, attempt: number, delay: number, maxRetries: number): void {
+        console.log(`Scheduling poll for scan ${scanId}, attempt ${attempt}, delay ${delay}ms`);
+        
+        // Schedule the next poll after the delay
+        setTimeout(async () => {
+            try {
+                console.log(`Executing poll for scan ${scanId}, attempt ${attempt}`);
+                
+                // Get current record
+                const currentRecord = await this.getReportByScanId(scanId);
+                
+                // If record doesn't exist or is already completed, stop polling
+                if (!currentRecord) {
+                    console.log(`Record not found for scan ${scanId}, stopping polling`);
+                    return;
+                }
+                
+                if (currentRecord.status === 'completed') {
+                    console.log(`Scan ${scanId} already completed, stopping polling`);
+                    return;
+                }
+                
+                console.log(`Fetching analysis results for scan ${scanId} from VirusTotal`);
+                
+                // Get analysis results from VirusTotal
+                const analysisResults = await this.vtApi.getFileAnalysisResults(scanId);
+                console.log(`Received analysis results for scan ${scanId}:`, analysisResults ? 'Results received' : 'No results');
+                
+                // Update the record with the latest results
+                const updatedResult = await this.updateScanResults(scanId, analysisResults);
+                console.log(`Updated database record for scan ${scanId}:`, updatedResult ? 'Record updated' : 'No update');
+                
+                // Emit WebSocket event with the updated results
+                if (updatedResult) {
+                    console.log(`Emitting WebSocket update for scan ${scanId}`);
+                    emitScanUpdate(io, scanId, {
+                        status: updatedResult.status,
+                        results: updatedResult
+                    });
+                    
+                    // If scan is completed, stop polling
+                    if (updatedResult.status === 'completed') {
+                        console.log(`Scan ${scanId} completed, stopping polling`);
+                        return;
+                    }
+                }
+                
+                // If we haven't reached max retries, schedule next poll with increased delay
+                if (attempt < maxRetries) {
+                    // Use true exponential backoff - multiply delay by 1.5 each time
+                    // This gives more aggressive polling at the start and more space between polls later
+                    const nextDelay = Math.min(delay * 1.5, 30000); // Cap at 30 seconds
+                    console.log(`Scheduling next poll for scan ${scanId}, attempt ${attempt + 1}, delay ${nextDelay}ms`);
+                    this.pollWithBackoff(scanId, attempt + 1, nextDelay, maxRetries);
+                } else {
+                    console.log(`Max polling attempts (${maxRetries}) reached for scan ${scanId}`);
+                    
+                    // Even after max retries, continue with occasional checks
+                    this.continueLongRunningCheck(scanId);
+                }
+            } catch (error) {
+                console.error(`Error polling for scan ${scanId}:`, error);
+                
+                // If there was an error, still try again with the next scheduled poll
+                // but don't increase the backoff as aggressively
+                if (attempt < maxRetries) {
+                    const nextDelay = delay * 1.2; // Slower backoff after errors
+                    console.log(`Rescheduling poll after error for scan ${scanId}, attempt ${attempt + 1}, delay ${nextDelay}ms`);
+                    this.pollWithBackoff(scanId, attempt + 1, nextDelay, maxRetries);
+                }
+            }
+        }, delay);
+    }
+    
+    /**
+     * Continue checking long-running scans at a reduced frequency
+     */
+    private continueLongRunningCheck(scanId: string): void {
+        console.log(`Starting long-running check for scan ${scanId}`);
+        
+        // Check every 60 seconds for long-running scans
+        const longRunningInterval = 60000;
+        
+        setTimeout(async () => {
+            try {
+                // Get current record
+                const currentRecord = await this.getReportByScanId(scanId);
+                
+                // If record doesn't exist or is already completed, stop checking
+                if (!currentRecord) {
+                    console.log(`Record not found for long-running scan ${scanId}, stopping checks`);
+                    return;
+                }
+                
+                if (currentRecord.status === 'completed') {
+                    console.log(`Long-running scan ${scanId} completed, stopping checks`);
+                    return;
+                }
+                
+                console.log(`Performing long-running check for scan ${scanId}`);
+                
+                // Try both the analysis endpoint and the file report endpoint
+                const [analysisResults, fileReport] = await Promise.allSettled([
+                    this.vtApi.getFileAnalysisResults(scanId),
+                    this.vtApi.getFileReportByHash(currentRecord.hash.sha256)
+                ]);
+                
+                let results = null;
+                if (analysisResults.status === 'fulfilled' && analysisResults.value) {
+                    results = analysisResults.value;
+                } else if (fileReport.status === 'fulfilled' && fileReport.value) {
+                    results = fileReport.value;
+                }
+                
+                if (results) {
+                    // Update the record with the latest results
+                    const updatedResult = await this.updateScanResults(scanId, results);
+                    
+                    // Emit WebSocket event with the updated results
+                    if (updatedResult) {
+                        console.log(`Emitting WebSocket update for long-running scan ${scanId}`);
+                        emitScanUpdate(io, scanId, {
+                            status: updatedResult.status,
+                            results: updatedResult
+                        });
+                        
+                        // If scan is completed, stop checking
+                        if (updatedResult.status === 'completed') {
+                            console.log(`Long-running scan ${scanId} completed, stopping checks`);
+                            return;
+                        }
+                    }
+                }
+                
+                // Schedule the next long-running check
+                this.continueLongRunningCheck(scanId);
+            } catch (error) {
+                console.error(`Error in long-running check for scan ${scanId}:`, error);
+                
+                // Even if there's an error, continue checking
+                this.continueLongRunningCheck(scanId);
+            }
+        }, longRunningInterval);
     }
 }
