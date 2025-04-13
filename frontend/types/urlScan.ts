@@ -57,6 +57,7 @@ export interface URLScanResponse {
     scanId: string;
     url: string;
     domain: string;
+    message?: string; // Added for pending scan status messages
     scanDate: string;
     firstSubmissionDate: string;
     lastSubmissionDate: string;

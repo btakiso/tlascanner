@@ -81,6 +81,7 @@ export interface URLScanResult {
     scanId: string;
     url: string;
     domain: string;
+    message?: string; // Optional message for status updates or errors
     stats: {
       harmless: number;
       malicious: number;
