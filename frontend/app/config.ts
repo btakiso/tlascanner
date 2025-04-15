@@ -1,15 +1,15 @@
 export const config = {
   API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
   SCAN_ENDPOINTS: {
-    URL: '/api/scan/url/scan',
-    FILE: '/api/scan/file',
+    URL: '/scan/url/scan',
+    FILE: '/scan/file',
     RESULTS: {
-      URL: '/api/scan/url/scan/results',
-      FILE: '/api/scan/file/results'
+      URL: '/scan/url/scan/results',
+      FILE: '/scan/file/results'
     }
   },
   CVE_ENDPOINTS: {
-    SEARCH: '/api/cve/search',
-    DETAILS: '/api/cve'
+    SEARCH: '/cve/search',
+    DETAILS: '/cve'
   }
 };
