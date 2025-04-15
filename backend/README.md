@@ -4,7 +4,7 @@
 
 - Node.js (v20.x LTS recommended)
 - PostgreSQL (latest version)
-- npm or yarn
+- npm
 
 ## Getting Started
 
@@ -26,8 +26,6 @@
 
    ```bash
    npm install
-   # or
-   yarn install
    ```
 
 4. **Database Setup**
@@ -44,8 +42,6 @@
 
    ```bash
    npm run dev
-   # or
-   yarn dev
    ```
 
 The server will start on `http://localhost:3000` by default.
