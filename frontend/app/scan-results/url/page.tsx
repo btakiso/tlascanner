@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Shield, ShieldAlert, Globe, Link2, AlertTriangle, CheckCircle, AlertOctagon, Info, Users, HelpCircle, Tag, FileText, Clock, Activity, Star, ThumbsUp, MessageSquare, ArrowLeft } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -52,7 +52,7 @@ interface VendorFilters {
   sortOrder: SortOrder;
 }
 
-export default function URLScanResults() {
+function URLScanResultsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
@@ -1230,5 +1230,19 @@ export default function URLScanResults() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+// Wrap the component that uses useSearchParams() in a Suspense boundary
+export default function URLScanResults() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold mb-2">Loading URL scan results...</h2>
+        <p className="text-muted-foreground">Please wait while we retrieve your scan data</p>
+      </div>
+    </div>}>
+      <URLScanResultsContent />
+    </Suspense>
   );
 }

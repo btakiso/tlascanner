@@ -69,3 +69,20 @@ Thumbs.db
 /frontend/*.log
 /frontend/.DS_Store
 /frontend/components/icons/
+/frontend/.next/
+/frontend/.vercel/
+
+# Deployment specific
+.vercel/
+.env.production
+.env.local
+scripts/*.ps1
+DEPLOYMENT.md
+frontend/DEPLOYMENT.md
+POSTGRESQL_SETUP.md
+
+# Keep configuration files
+!render.yaml
+!frontend/next.config.js
+!frontend/vercel.json
+!backend/Procfile

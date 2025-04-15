@@ -12,6 +12,7 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "db:setup": "ts-node src/config/database.ts",
     "db:migrate": "ts-node src/config/database.ts",
+    "render:setup": "node scripts/setup-render-db.js",
     "prestart": "npm run build && npm run db:migrate"
   },
   "keywords": [

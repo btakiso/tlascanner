@@ -1,0 +1,53 @@
+services:
+  # Backend API service
+  - type: web
+    name: tlascanner-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Database environment variables will be added from the database service
+      - key: PGUSER
+        fromDatabase:
+          name: tlascanner-db
+          property: user
+      - key: PGHOST
+        fromDatabase:
+          name: tlascanner-db
+          property: host
+      - key: PGPORT
+        fromDatabase:
+          name: tlascanner-db
+          property: port
+      - key: PGDATABASE
+        fromDatabase:
+          name: tlascanner-db
+          property: database
+      - key: PGPASSWORD
+        fromDatabase:
+          name: tlascanner-db
+          property: password
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tlascanner-db
+          property: connectionString
+      # These will need to be set manually in the Render dashboard
+      - key: VIRUS_TOTAL_API_KEY
+        sync: false
+      - key: NVD_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+
+# Database service
+databases:
+  - name: tlascanner-db
+    databaseName: tlascanner
+    plan: free
+    postgresMajorVersion: "14"
+    ipAllowList: [] # only allow internal connections

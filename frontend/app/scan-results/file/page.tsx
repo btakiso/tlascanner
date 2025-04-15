@@ -1,7 +1,7 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { io, Socket } from "socket.io-client"
 import { useTheme } from "next-themes"
@@ -145,7 +145,7 @@ const alertStyles: Record<string, string> = {
   safe: "border-l-8 border-l-green-500 bg-green-100 dark:bg-green-900/30 shadow-md"
 };
 
-export default function FileScanResults() {
+function FileScanResultsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
@@ -1721,5 +1721,19 @@ export default function FileScanResults() {
         </Tabs>
       </motion.div>
     </div>
+  );
+}
+
+// Wrap the component that uses useSearchParams() in a Suspense boundary
+export default function FileScanResults() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold mb-2">Loading scan results...</h2>
+        <p className="text-muted-foreground">Please wait while we retrieve your scan data</p>
+      </div>
+    </div>}>
+      <FileScanResultsContent />
+    </Suspense>
   );
 }

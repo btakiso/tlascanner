@@ -118,7 +118,8 @@ TLAScanner is a web-based security tool designed to empower users with the abili
 
 #### Infrastructure
 
-❌ Vercel deployment
+✅ Vercel deployment
+❌ Render deployment
 ✅ Database setup
 ✅ VirusTotal API integration
 ❌ Monitoring configuration

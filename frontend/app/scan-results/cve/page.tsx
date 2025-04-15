@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import { AlertTriangle, ExternalLink, Shield, Terminal, Bug, FileCode, Database, Loader2, Search, ChevronRight, ChevronsLeft, ChevronLeft, ChevronsRight, AlertCircle, ArrowLeft } from "lucide-react";
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { AnimatedSeverityScore } from "@/components/ui/animated-severity-score";
 import { CVSSVectorTooltip } from "@/components/ui/cvss-vector-tooltip";
 import { SeverityBadge } from "@/components/ui/severity-badge";
@@ -42,7 +42,7 @@ const getVulnerabilityTypeIcon = (type: string) => {
   return types[type] || { icon: Bug, label: "Other" };
 };
 
-export default function CVEResultPage() {
+function CVEResultPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [cveData, setCveData] = useState<CVEDetails | null>(null);
@@ -1147,5 +1147,19 @@ export default function CVEResultPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Wrap the component that uses useSearchParams() in a Suspense boundary
+export default function CVEResultPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold mb-2">Loading CVE details...</h2>
+        <p className="text-muted-foreground">Please wait while we retrieve vulnerability information</p>
+      </div>
+    </div>}>
+      <CVEResultPageContent />
+    </Suspense>
   );
 }
