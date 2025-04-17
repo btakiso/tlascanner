@@ -60,7 +60,8 @@ export async function uploadAndScanFile(file: File): Promise<FileScanResponse> {
     formData.append('file', file);
 
     // Fix the URL to match the backend route configuration
-    const response = await fetch(`${API_BASE_URL.includes('/api') ? API_BASE_URL : API_BASE_URL + '/api'}/scan/file/scan`, {
+    // Direct API call to scan endpoint
+    const response = await fetch(`${API_BASE_URL}/api/scan/file/scan`, {
       method: 'POST',
       body: formData,
     });
@@ -93,7 +94,7 @@ export async function uploadAndScanFile(file: File): Promise<FileScanResponse> {
  */
 export async function getFileScanById(id: string): Promise<FileScanResponse> {
   return retryWithBackoff(async () => {
-    const response = await fetch(`${API_BASE_URL.includes('/api') ? API_BASE_URL : API_BASE_URL + '/api'}/scan/file/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/scan/file/${id}`, {
       method: 'GET',
     });
 
@@ -114,7 +115,7 @@ export async function getFileScanById(id: string): Promise<FileScanResponse> {
  */
 export async function checkFileScanStatus(scanId: string): Promise<FileScanResponse> {
   return retryWithBackoff(async () => {
-    const response = await fetch(`${API_BASE_URL.includes('/api') ? API_BASE_URL : API_BASE_URL + '/api'}/scan/file/${scanId}/status`, {
+    const response = await fetch(`${API_BASE_URL}/api/scan/file/${scanId}/status`, {
       method: 'GET',
     });
 
@@ -145,7 +146,7 @@ export async function checkFileScanStatus(scanId: string): Promise<FileScanRespo
  */
 export async function getFileScanByHash(hash: string): Promise<FileScanResponse> {
   return retryWithBackoff(async () => {
-    const response = await fetch(`${API_BASE_URL.includes('/api') ? API_BASE_URL : API_BASE_URL + '/api'}/scan/file/hash/${hash}`, {
+    const response = await fetch(`${API_BASE_URL}/api/scan/file/hash/${hash}`, {
       method: 'GET',
     });
 

@@ -4,12 +4,20 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://api.tlascanner.com/api"
+    "NEXT_PUBLIC_API_URL": "https://api.tlascanner.com"
   },
   "routes": [
     {
       "src": "/api/(.*)",
       "dest": "https://api.tlascanner.com/api/$1"
+    },
+    {
+      "src": "/scan/(.*)",
+      "dest": "https://api.tlascanner.com/api/scan/$1"
+    },
+    {
+      "src": "/cve/(.*)",
+      "dest": "https://api.tlascanner.com/api/cve/$1"
     }
   ]
 }
