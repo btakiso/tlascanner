@@ -15,8 +15,11 @@ import { ChevronDown, Link2, FileSearch, Database, ExternalLink } from "lucide-r
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 
+import { Menu } from "lucide-react"
+
 export function NavBar() {
   const [scrolled, setScrolled] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -32,11 +35,23 @@ export function NavBar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-2 sm:px-4">
         <div className={cn(
-          "flex items-center justify-between transition-all duration-300",
+          "flex items-center justify-between transition-all duration-300 w-full",
           scrolled ? "h-16" : "h-20"
         )}>
+          {/* Hamburger for mobile */}
+          <button
+            className="lg:hidden flex items-center justify-center p-3 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+            onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav-menu"
+            type="button"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
+
           <Link 
             href="/" 
             className={cn(
@@ -48,7 +63,9 @@ export function NavBar() {
           >
             <Logo />
           </Link>
-          <div className="flex items-center gap-2">
+          
+          {/* Desktop Nav */}
+          <nav className="hidden lg:flex items-center gap-2" aria-label="Main navigation">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button 
@@ -97,7 +114,6 @@ export function NavBar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-
             <Link href="/about">
               <Button 
                 variant="ghost" 
@@ -111,7 +127,6 @@ export function NavBar() {
                 About
               </Button>
             </Link>
-
             <ThemeToggle 
               className={cn(
                 "rounded-full transition-all duration-300",
@@ -120,9 +135,55 @@ export function NavBar() {
                   : "bg-background/20 backdrop-blur-sm hover:bg-blue-500/10 hover:text-blue-500 dark:hover:bg-blue-500/20 dark:hover:text-blue-400 hover:shadow-md dark:hover:shadow-lg dark:hover:shadow-primary/5"
               )}
             />
-          </div>
+          </nav>
+        </div>
+        
+        {/* Mobile Nav Overlay */}
+        <div
+          id="mobile-nav-menu"
+          role="dialog"
+          aria-modal="true"
+          className={cn(
+            "fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex lg:hidden transition-all duration-300",
+            mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+          )}
+          style={{ transitionProperty: 'opacity, pointer-events' }}
+          tabIndex={-1}
+          onClick={() => setMobileOpen(false)}
+        >
+          <nav
+            className={cn(
+              "bg-background w-11/12 max-w-xs h-full shadow-xl border-r border-border flex flex-col py-8 px-6 gap-6 overflow-y-auto focus:outline-none",
+              mobileOpen ? "translate-x-0" : "-translate-x-full",
+              "transition-transform duration-300"
+            )}
+            aria-label="Mobile navigation"
+            onClick={e => e.stopPropagation()}
+          >
+            <Link href="/" className="flex items-center gap-2 mb-6 px-2 py-1 rounded-full focus-visible:ring-2 focus-visible:ring-primary" aria-label="Home">
+              <Logo />
+            </Link>
+            <Link href="/#url-scanner" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
+              <Link2 className="h-5 w-5 text-blue-500" />
+              URL Scanner
+            </Link>
+            <Link href="/#file-scanner" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
+              <FileSearch className="h-5 w-5 text-purple-500" />
+              File Scanner
+            </Link>
+            <Link href="/#cve-lookup" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
+              <Database className="h-5 w-5 text-emerald-500" />
+              CVE Database
+            </Link>
+            <Link href="/about" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
+              About Us
+            </Link>
+            <Link href="/contact" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
+              Contact
+            </Link>
+          </nav>
         </div>
       </div>
     </header>
-  )
+  );
 }

@@ -58,28 +58,28 @@ export function Hero() {
   }, [displayText, currentIndex, isTyping]);
 
   return (
-    <section className="relative min-h-[90vh] flex items-center py-20 overflow-hidden" ref={targetRef}>
+    <section className="relative min-h-[80vh] sm:min-h-[90vh] flex items-center py-8 sm:py-16 md:py-20 overflow-hidden" ref={targetRef}>
       {/* Background Elements */}
       <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:50px_50px]" />
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/10 to-background/20" />
 
       <AnimatePresence>
         <motion.div 
-          className="container mx-auto px-8 relative z-10"
+          className="container mx-auto px-4 sm:px-8 relative z-10"
           style={{ opacity, scale, y }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-16 items-start">
             {/* Left Column - Content */}
-            <div className="max-w-xl space-y-8">
+            <div className="w-full max-w-xl space-y-4 sm:space-y-6 md:space-y-8 mx-auto md:mx-0 px-0">
               {/* Stats Row */}
               <motion.div 
-                className="flex gap-8 pl-1"
+                className="flex gap-3 sm:gap-4 flex-wrap"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6, ease: "easeOut" }}
               >
-                <div className="flex items-center gap-2 bg-background/50 backdrop-blur-sm px-3 py-1.5 rounded-full border border-border shadow-lg">
+                <div className="flex items-center gap-2 bg-background/50 backdrop-blur-sm px-3 py-2 rounded-full border border-border shadow-lg">
                   <Clock className="w-4 h-4 text-blue-400" />
                   <span className="text-sm text-muted-foreground">Real-time Scanning</span>
                 </div>
@@ -101,7 +101,7 @@ export function Hero() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8, ease: "easeOut" }}
-                  className="text-4xl md:text-5xl font-bold leading-tight"
+                  className="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight"
                 >
                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-blue-500 to-purple-600">
                     Advanced
@@ -126,8 +126,8 @@ export function Hero() {
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.1, ease: "easeOut" }}
-                className="text-base text-muted-foreground pl-1"
+                transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+                className="text-muted-foreground text-base sm:text-lg"
               >
                 Our advanced security tools help detect threats and manage vulnerabilities in real-time.
               </motion.p>
@@ -169,13 +169,13 @@ export function Hero() {
             </div>
 
             {/* Right Column - Feature Cards */}
-            <div className="relative h-[500px] mt-8">
+            <div className="relative w-full h-[300px] sm:h-[350px] md:h-[500px] overflow-hidden rounded-xl sm:rounded-3xl border border-border/40 shadow-2xl shadow-blue-500/5 mt-6 md:mt-0">
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
                 whileHover={{ scale: 1.02, y: -5 }}
-                className="absolute top-20 right-0 bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-blue-500/10 transition-all duration-300 w-64"
+                className="bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-blue-500/10 transition-all duration-300 w-full md:w-64 md:absolute md:top-20 md:right-0 mb-4 md:mb-0"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-xl bg-blue-500/10 shadow-inner">
@@ -183,7 +183,7 @@ export function Hero() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground text-sm">URL Scanner</h3>
-                    <p className="text-xs text-muted-foreground">Real-time threat detection</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Real-time threat detection</p>
                   </div>
                 </div>
               </motion.div>
@@ -193,7 +193,7 @@ export function Hero() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
                 whileHover={{ scale: 1.02, y: -5 }}
-                className="absolute top-60 left-0 bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-purple-500/10 transition-all duration-300 w-64"
+                className="bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-purple-500/10 transition-all duration-300 w-full md:w-64 md:absolute md:top-60 md:left-0 mb-4 md:mb-0"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-xl bg-purple-500/10 shadow-inner">
@@ -201,7 +201,7 @@ export function Hero() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground text-sm">File Scanner</h3>
-                    <p className="text-xs text-muted-foreground">Malware detection</p>
+                    <p className="text-muted-foreground text-sm sm:text-base">Malware detection</p>
                   </div>
                 </div>
               </motion.div>
@@ -211,7 +211,7 @@ export function Hero() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.6, ease: "easeOut" }}
                 whileHover={{ scale: 1.02, y: -5 }}
-                className="absolute top-96 right-0 bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-green-500/10 transition-all duration-300 w-64"
+                className="bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-green-500/10 transition-all duration-300 w-full md:w-64 md:absolute md:top-96 md:right-0"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-xl bg-green-500/10 shadow-inner">
@@ -219,7 +219,7 @@ export function Hero() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground text-sm">CVE Database</h3>
-                    <p className="text-xs text-muted-foreground">Vulnerability insights</p>
+                    <p className="text-muted-foreground text-sm sm:text-base">Vulnerability insights</p>
                   </div>
                 </div>
               </motion.div>

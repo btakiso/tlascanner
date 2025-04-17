@@ -31,7 +31,10 @@ export async function searchCVEs(params: CVESearchParams): Promise<CVESearchResp
     if (params.startIndex !== undefined) queryParams.append('startIndex', params.startIndex.toString());
     if (params.resultsPerPage !== undefined) queryParams.append('resultsPerPage', params.resultsPerPage.toString());
 
-    const apiUrl = `${config.API_URL}${config.CVE_ENDPOINTS.SEARCH}`;
+    // Ensure API URL includes the /api prefix
+    const baseUrl = config.API_URL;
+    const apiPath = config.CVE_ENDPOINTS.SEARCH;
+    const apiUrl = `${baseUrl}${apiPath.startsWith('/api') ? apiPath : '/api' + apiPath}`;
     console.log('Making CVE search request to:', apiUrl);
     console.log('Request params:', params);
 

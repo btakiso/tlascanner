@@ -134,18 +134,18 @@ const secondRow = securityUpdates.slice(securityUpdates.length / 2);
 
 export function MarqueeDemo() {
   return (
-    <div className="relative flex h-[450px] w-full flex-col items-center overflow-hidden">
+    <div className="relative flex h-[320px] sm:h-[400px] md:h-[450px] w-full flex-col items-center overflow-hidden">
       <div className="absolute inset-0 bg-grid-white/[0.02] bg-[length:50px_50px]" />
       
-      <div className="relative z-10 w-full py-2">
-        <div className="animate-marquee-reverse flex gap-2 px-4">
+      <div className="relative z-10 w-full py-1 sm:py-2 overflow-x-auto">
+        <div className="animate-marquee-reverse flex gap-2 px-2 sm:px-4 min-w-[320px]">
           {[...firstRow, ...firstRow, ...firstRow].map((update, i) => (
             <SecurityCard key={`${update.id}-${i}`} {...update} />
           ))}
         </div>
       </div>
-      <div className="relative z-10 w-full py-2">
-        <div className="animate-marquee flex gap-2 px-4">
+      <div className="relative z-10 w-full py-1 sm:py-2 overflow-x-auto">
+        <div className="animate-marquee flex gap-2 px-2 sm:px-4 min-w-[320px]">
           {[...secondRow, ...secondRow, ...secondRow].map((update, i) => (
             <SecurityCard key={`${update.id}-${i}`} {...update} />
           ))}
