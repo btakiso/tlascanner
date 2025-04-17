@@ -1,9 +1,9 @@
 "use client";
 
+import React, { useEffect } from "react";
 import { NavBar } from "@/components/NavBar";
 import { Footer } from "@/components/Footer";
 import { CyberBackground } from "@/components/CyberBackground";
-import { useEffect } from "react";
 
 export default function MainLayout({
   children,

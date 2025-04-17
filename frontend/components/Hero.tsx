@@ -132,7 +132,8 @@ export function Hero() {
                 Our advanced security tools help detect threats and manage vulnerabilities in real-time.
               </motion.p>
 
-              {/* Search Form */}
+              {/* Search Form - Temporarily hidden until functionality is implemented */}
+              {/* 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -156,6 +157,7 @@ export function Hero() {
                   </div>
                 </div>
               </motion.div>
+              */}
 
               {/* Additional Info */}
               <motion.div
