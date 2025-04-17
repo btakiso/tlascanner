@@ -4,7 +4,7 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://api.tlascanner.com"
+    "NEXT_PUBLIC_API_URL": "https://api.tlascanner.com/api"
   },
   "routes": [
     {
