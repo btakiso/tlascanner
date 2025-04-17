@@ -86,7 +86,7 @@ export function NavBar() {
                 className="w-[280px] p-2 backdrop-blur-sm bg-white/40 dark:bg-gray-900/40 rounded-[20px] border-none shadow-lg shadow-black/5 dark:shadow-white/5"
               >
                 <DropdownMenuItem asChild className="py-2.5 px-4 focus:bg-blue-100 dark:focus:bg-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-800/60 rounded-[16px] cursor-pointer my-1 transition-all duration-200 hover:scale-[0.98] group">
-                  <Link href="/url-scanner" className="flex items-start gap-3">
+                  <Link href="/(main)/url-scanner" className="flex items-start gap-3">
                     <Link2 className="h-4 w-4 mt-0.5 text-blue-500 group-hover:scale-110 transition-transform" />
                     <div>
                       <div className="font-medium mb-0.5 text-sm">URL Scanner</div>
@@ -95,7 +95,7 @@ export function NavBar() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="py-2.5 px-4 focus:bg-blue-100 dark:focus:bg-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-800/60 rounded-[16px] cursor-pointer my-1 transition-all duration-200 hover:scale-[0.98] group">
-                  <Link href="/file-scanner" className="flex items-start gap-3">
+                  <Link href="/(main)/file-scanner" className="flex items-start gap-3">
                     <FileSearch className="h-4 w-4 mt-0.5 text-purple-500 group-hover:scale-110 transition-transform" />
                     <div>
                       <div className="font-medium mb-0.5 text-sm">File Scanner</div>
@@ -104,7 +104,7 @@ export function NavBar() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="py-2.5 px-4 focus:bg-blue-100 dark:focus:bg-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-800/60 rounded-[16px] cursor-pointer my-1 transition-all duration-200 hover:scale-[0.98] group">
-                  <Link href="/cve-lookup" className="flex items-start gap-3">
+                  <Link href="/(main)/cve-lookup" className="flex items-start gap-3">
                     <Database className="h-4 w-4 mt-0.5 text-emerald-500 group-hover:scale-110 transition-transform" />
                     <div>
                       <div className="font-medium mb-0.5 text-sm">CVE Database</div>
@@ -114,7 +114,7 @@ export function NavBar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Link href="/about">
+            <Link href="/(main)/about">
               <Button 
                 variant="ghost" 
                 className={cn(
@@ -163,22 +163,22 @@ export function NavBar() {
             <Link href="/" className="flex items-center gap-2 mb-6 px-2 py-1 rounded-full focus-visible:ring-2 focus-visible:ring-primary" aria-label="Home">
               <Logo />
             </Link>
-            <Link href="/url-scanner" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
+            <Link href="/(main)/url-scanner" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
               <Link2 className="h-5 w-5 text-blue-500" />
               URL Scanner
             </Link>
-            <Link href="/file-scanner" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
+            <Link href="/(main)/file-scanner" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
               <FileSearch className="h-5 w-5 text-purple-500" />
               File Scanner
             </Link>
-            <Link href="/cve-lookup" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
+            <Link href="/(main)/cve-lookup" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
               <Database className="h-5 w-5 text-emerald-500" />
               CVE Database
             </Link>
-            <Link href="/about" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
+            <Link href="/(main)/about" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
               About Us
             </Link>
-            <Link href="/contact" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
+            <Link href="/(main)/contact" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary transition-all text-base font-medium" onClick={() => setMobileOpen(false)}>
               Contact
             </Link>
           </nav>
