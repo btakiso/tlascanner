@@ -296,21 +296,41 @@ function FileScanResultsContent() {
       console.log('Creating new WebSocket connection for scan ID:', scanId);
       
       // Get the base URL from the current window location
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      const wsUrl = `${protocol}//${host}`;
+      // For production, use the API URL for WebSocket connections
+      // This assumes the backend has WebSocket support at the same domain as the API
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      let wsUrl = '';
+      
+      if (apiUrl && apiUrl.startsWith('https')) {
+        // Convert https:// to wss://
+        wsUrl = apiUrl.replace('https://', 'wss://');
+      } else if (apiUrl && apiUrl.startsWith('http')) {
+        // Convert http:// to ws://
+        wsUrl = apiUrl.replace('http://', 'ws://');
+      } else {
+        // Fallback to current host
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        wsUrl = `${protocol}//${host}`;
+      }
       
       console.log('WebSocket URL:', wsUrl);
       
       try {
         console.log('Creating Socket.IO connection with URL:', wsUrl);
         
+        // Check if scan is already completed before attempting WebSocket connection
+        if (scanStatus === 'completed') {
+          console.log('Scan already completed, no need for real-time updates');
+          return null;
+        }
+        
         // Create new connection with explicit options
         const socket = io(wsUrl, {
           transports: ['websocket', 'polling'],
-          reconnectionAttempts: 10,
+          reconnectionAttempts: 5,  // Reduced from 10 to fail faster if connection isn't possible
           reconnectionDelay: 1000,
-          timeout: 30000,
+          timeout: 10000,  // Reduced from 30000 to fail faster
           forceNew: true,
           autoConnect: true,
           withCredentials: false,
@@ -474,16 +494,33 @@ function FileScanResultsContent() {
         return socket;
       } catch (error) {
         console.error('Error creating WebSocket connection:', error);
-        toast({
-          title: "WebSocket Error",
-          description: "Failed to create WebSocket connection",
-          variant: "destructive"
-        });
+        
+        // Only show toast for non-completed scans
+        if (scanStatus !== 'completed') {
+          toast({
+            title: "Real-time Updates Unavailable",
+            description: "Using periodic refresh instead of real-time updates",
+            variant: "default",
+          });
+          
+          // Set up a polling interval as fallback when WebSocket fails
+          const pollInterval = setInterval(() => {
+            if (scanStatus !== 'completed') {
+              // Use the same function as fetchInitialResults uses
+              checkFileScanStatus(scanId).then(result => {
+                processResults(result);
+              }).catch(err => {
+                console.error('Error polling scan results:', err);
+              });
+            } else {
+              clearInterval(pollInterval);
+            }
+          }, 5000); // Poll every 5 seconds
+        }
+        
         return null;
       }
     };
-    
-
     
     const fetchInitialResults = async () => {
       try {
@@ -537,7 +574,7 @@ function FileScanResultsContent() {
         socketRef.current = null;
       }
     };
-  }, [searchParams]);
+  }, [searchParams as any]);
 
   const copyToClipboard = (text: string, itemKey: string) => {
     navigator.clipboard.writeText(text);
