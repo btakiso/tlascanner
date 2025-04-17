@@ -3,12 +3,20 @@
 import { NavBar } from "@/components/NavBar";
 import { Footer } from "@/components/Footer";
 import { CyberBackground } from "@/components/CyberBackground";
+import { useEffect } from "react";
 
 export default function ScanResultsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Fix for scroll position issue when navigating between pages
+  // This ensures all scan results pages always start at the top when navigating to them
+  // Without this, the page might maintain scroll position from previous page or scroll to bottom
+  useEffect(() => {
+    // Scroll to top (0,0) coordinates when component mounts
+    window.scrollTo(0, 0);
+  }, []); // Empty dependency array means this runs once on mount
   return (
     <div className="min-h-screen">
       {/* Cyber Background */}
