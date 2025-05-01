@@ -213,7 +213,7 @@ export function Hero() {
                 </motion.div>
               </Link>
 
-              <Link href="/cve-database" className="block w-full md:w-64 md:absolute md:top-96 md:right-0">
+              <Link href="/cve-lookup" className="block w-full md:w-64 md:absolute md:top-96 md:right-0">
                 <motion.div
                   initial={{ opacity: 0, x: 0 }}
                   animate={{ opacity: 1, x: 0 }}
