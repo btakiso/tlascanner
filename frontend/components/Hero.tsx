@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, Shield, Scan, FileSearch, Database, Clock } from "lucide-react"
 import { useRef, useState, useEffect } from "react"
+import Link from "next/link"
 
 const products = [
   "URL Scanner",
@@ -172,59 +173,65 @@ export function Hero() {
 
             {/* Right Column - Feature Cards */}
             <div className="relative w-full h-[300px] sm:h-[350px] md:h-[500px] overflow-hidden rounded-xl sm:rounded-3xl border border-border/40 shadow-2xl shadow-blue-500/5 mt-6 md:mt-0">
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
-                whileHover={{ scale: 1.02, y: -5 }}
-                className="bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-blue-500/10 transition-all duration-300 w-full md:w-64 md:absolute md:top-20 md:right-0 mb-4 md:mb-0"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-blue-500/10 shadow-inner">
-                    <Scan className="w-5 h-5 text-blue-400" />
+              <Link href="/url-scanner" className="block w-full md:w-64 md:absolute md:top-20 md:right-0 mb-4 md:mb-0">
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
+                  whileHover={{ scale: 1.02, y: -5 }}
+                  className="bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-blue-500/10 transition-all duration-300 w-full h-full cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-blue-500/10 shadow-inner">
+                      <Scan className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground text-sm">URL Scanner</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground">Real-time threat detection</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground text-sm">URL Scanner</h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground">Real-time threat detection</p>
-                  </div>
-                </div>
-              </motion.div>
+                </motion.div>
+              </Link>
 
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
-                whileHover={{ scale: 1.02, y: -5 }}
-                className="bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-purple-500/10 transition-all duration-300 w-full md:w-64 md:absolute md:top-60 md:left-0 mb-4 md:mb-0"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-purple-500/10 shadow-inner">
-                    <FileSearch className="w-5 h-5 text-purple-400" />
+              <Link href="/file-scanner" className="block w-full md:w-64 md:absolute md:top-60 md:left-0 mb-4 md:mb-0">
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
+                  whileHover={{ scale: 1.02, y: -5 }}
+                  className="bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-purple-500/10 transition-all duration-300 w-full h-full cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-purple-500/10 shadow-inner">
+                      <FileSearch className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground text-sm">File Scanner</h3>
+                      <p className="text-muted-foreground text-sm sm:text-base">Malware detection</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground text-sm">File Scanner</h3>
-                    <p className="text-muted-foreground text-sm sm:text-base">Malware detection</p>
-                  </div>
-                </div>
-              </motion.div>
+                </motion.div>
+              </Link>
 
-              <motion.div
-                initial={{ opacity: 0, x: 0 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8, delay: 0.6, ease: "easeOut" }}
-                whileHover={{ scale: 1.02, y: -5 }}
-                className="bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-green-500/10 transition-all duration-300 w-full md:w-64 md:absolute md:top-96 md:right-0"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-green-500/10 shadow-inner">
-                    <Database className="w-5 h-5 text-green-400" />
+              <Link href="/cve-database" className="block w-full md:w-64 md:absolute md:top-96 md:right-0">
+                <motion.div
+                  initial={{ opacity: 0, x: 0 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.8, delay: 0.6, ease: "easeOut" }}
+                  whileHover={{ scale: 1.02, y: -5 }}
+                  className="bg-background/50 backdrop-blur-lg rounded-2xl p-4 border border-border shadow-lg hover:shadow-green-500/10 transition-all duration-300 w-full h-full cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-green-500/10 shadow-inner">
+                      <Database className="w-5 h-5 text-green-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-foreground text-sm">CVE Database</h3>
+                      <p className="text-muted-foreground text-sm sm:text-base">Vulnerability insights</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground text-sm">CVE Database</h3>
-                    <p className="text-muted-foreground text-sm sm:text-base">Vulnerability insights</p>
-                  </div>
-                </div>
-              </motion.div>
+                </motion.div>
+              </Link>
             </div>
           </div>
         </motion.div>
