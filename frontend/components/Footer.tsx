@@ -17,7 +17,7 @@ export function Footer() {
               <Link href="https://github.com/btakiso/tlascanner" target="_blank" aria-label="GitHub Repository" className="hover:text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-full p-2">
                 <Github className="h-5 w-5 sm:h-4 sm:w-4" />
               </Link>
-              <Link href="#" aria-label="LinkedIn" className="hover:text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-full p-2">
+              <Link href="#" aria-label="LinkedIn" className="hover:text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-full p-2" onClick={(e) => e.preventDefault()}>
                 <Linkedin className="h-5 w-5 sm:h-4 sm:w-4" />
               </Link>
             </div>

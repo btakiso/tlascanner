@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { ScrollProgress } from "@/components/ui/scroll-progress"
 import { Toaster } from "@/components/ui/toaster"
 import BackendHealthWatcher from "@/components/BackendHealthWatcher"
+import AnchorGuard from "@/components/AnchorGuard"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -45,6 +46,7 @@ export default function RootLayout({
           <ScrollProgress />
           <BackendHealthWatcher />
           <Toaster />
+          <AnchorGuard />
           {children}
         </ThemeProvider>
       </body>
