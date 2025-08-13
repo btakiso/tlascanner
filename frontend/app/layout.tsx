@@ -3,6 +3,8 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ScrollProgress } from "@/components/ui/scroll-progress"
+import { Toaster } from "@/components/ui/toaster"
+import BackendHealthWatcher from "@/components/BackendHealthWatcher"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -41,6 +43,8 @@ export default function RootLayout({
       <body className={`${inter.className} relative`} suppressHydrationWarning>
         <ThemeProvider>
           <ScrollProgress />
+          <BackendHealthWatcher />
+          <Toaster />
           {children}
         </ThemeProvider>
       </body>
