@@ -160,14 +160,6 @@ export default function ContactPage() {
                 <p className="font-medium">Email</p>
                 <p className="text-muted-foreground">support@tlascanner.com</p>
               </div>
-              <div>
-                <p className="font-medium">Address</p>
-                <p className="text-muted-foreground">
-                  TLAScanner Inc.<br />
-                  123 Security Street<br />
-                  Cyber City, CS 12345
-                </p>
-              </div>
             </div>
           </div>
         </CardContent>
